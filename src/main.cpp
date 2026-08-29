@@ -41,10 +41,10 @@ bfs::Mpu9250 imu(&Wire, bfs::Mpu9250::I2C_ADDR_PRIM);
 #define BLE_DEVICE_NAME "POI"
 
 #define BLE_SERVICE_UUID \
-  "c5b6fc84-1450-4f82-83c7-ef4dc0e948de"
+    "c5b6fc84-1450-4f82-83c7-ef4dc0e948de"
 
 #define BLE_CHAR_UUID \
-  "309d5cfd-4ad1-45f6-81c8-fd6f512ae200"
+    "309d5cfd-4ad1-45f6-81c8-fd6f512ae200"
 
 BLEInterface *ble_driver = nullptr;
 
@@ -147,12 +147,12 @@ uint32_t lastLedUpdate = 0;
 // Function to acknowledge/clear the MPU9250 interrupt hardware pin
 void clearimuInterrupt()
 {
-  Wire.beginTransmission(bfs::Mpu9250::I2C_ADDR_PRIM);
-  Wire.write(0x3A); // Read INT_STATUS register
-  Wire.endTransmission();
-  Wire.requestFrom(bfs::Mpu9250::I2C_ADDR_PRIM, 1);
-  while (Wire.available())
-    Wire.read();
+    Wire.beginTransmission(bfs::Mpu9250::I2C_ADDR_PRIM);
+    Wire.write(0x3A); // Read INT_STATUS register
+    Wire.endTransmission();
+    Wire.requestFrom(bfs::Mpu9250::I2C_ADDR_PRIM, 1);
+    while (Wire.available())
+        Wire.read();
 }
 
 // ============================================================
@@ -161,77 +161,77 @@ void clearimuInterrupt()
 
 void enterDeepSleep()
 {
-  Serial.println();
-  Serial.println("==============================");
-  Serial.println("Preparing for Deep Sleep");
-  Serial.println("==============================");
+    Serial.println();
+    Serial.println("==============================");
+    Serial.println("Preparing for Deep Sleep");
+    Serial.println("==============================");
 
-  // --------------------------------------------------------
-  // Turn LEDs off
-  // --------------------------------------------------------
+    // --------------------------------------------------------
+    // Turn LEDs off
+    // --------------------------------------------------------
 
-  FastLED.clear();
-  FastLED.show();
+    FastLED.clear();
+    FastLED.show();
 
-  // --------------------------------------------------------
-  // Enable MPU9250 Wake-on-Motion
-  // --------------------------------------------------------
-  Serial.println("Enabling MPU9250 WOM...");
+    // --------------------------------------------------------
+    // Enable MPU9250 Wake-on-Motion
+    // --------------------------------------------------------
+    Serial.println("Enabling MPU9250 WOM...");
 
-  // Switch imu to Low Power WOM Mode
-  imu.EnableWom(40, bfs::Mpu9250::WOM_RATE_250HZ);
+    // Switch imu to Low Power WOM Mode
+    imu.EnableWom(40, bfs::Mpu9250::WOM_RATE_250HZ);
 
-  // --------------------------------------------------------
-  // Configure MPU9250 interrupt
-  //
-  // INT_PIN_CFG = 0x37
-  // 0x30 = latch interrupt + clear on any read
-  // --------------------------------------------------------
+    // --------------------------------------------------------
+    // Configure MPU9250 interrupt
+    //
+    // INT_PIN_CFG = 0x37
+    // 0x30 = latch interrupt + clear on any read
+    // --------------------------------------------------------
 
-  // Latch interrupt and clear on any read
-  Wire.beginTransmission(bfs::Mpu9250::I2C_ADDR_PRIM);
-  Wire.write(0x37);
-  Wire.write(0x30);
-  Wire.endTransmission();
+    // Latch interrupt and clear on any read
+    Wire.beginTransmission(bfs::Mpu9250::I2C_ADDR_PRIM);
+    Wire.write(0x37);
+    Wire.write(0x30);
+    Wire.endTransmission();
 
-  // --------------------------------------------------------
-  // Clear any previous interrupt
-  // --------------------------------------------------------
+    // --------------------------------------------------------
+    // Clear any previous interrupt
+    // --------------------------------------------------------
 
-  clearimuInterrupt();
-  delay(50);
+    clearimuInterrupt();
+    delay(50);
 
-  // --------------------------------------------------------
-  // Configure ESP32-C3 GPIO wakeup
-  //
-  // Wake when IMU_INT_PIN goes HIGH.
-  // --------------------------------------------------------
-  esp_err_t err =
-      esp_deep_sleep_enable_gpio_wakeup(
-          1ULL << IMU_INT_PIN,
-          ESP_GPIO_WAKEUP_GPIO_HIGH);
+    // --------------------------------------------------------
+    // Configure ESP32-C3 GPIO wakeup
+    //
+    // Wake when IMU_INT_PIN goes HIGH.
+    // --------------------------------------------------------
+    esp_err_t err =
+        esp_deep_sleep_enable_gpio_wakeup(
+            1ULL << IMU_INT_PIN,
+            ESP_GPIO_WAKEUP_GPIO_HIGH);
 
-  if (err != ESP_OK)
-  {
-    Serial.print("Failed to configure GPIO wakeup: ");
-    Serial.println(err);
-    return;
-  }
+    if (err != ESP_OK)
+    {
+        Serial.print("Failed to configure GPIO wakeup: ");
+        Serial.println(err);
+        return;
+    }
 
-  // --------------------------------------------------------
-  // Sleep
-  // --------------------------------------------------------
+    // --------------------------------------------------------
+    // Sleep
+    // --------------------------------------------------------
 
-  Serial.println("GPIO wakeup configured.");
+    Serial.println("GPIO wakeup configured.");
 
-  Serial.print("Waiting for motion on GPIO ");
-  Serial.println(IMU_INT_PIN);
+    Serial.print("Waiting for motion on GPIO ");
+    Serial.println(IMU_INT_PIN);
 
-  Serial.println("Entering Deep Sleep...");
+    Serial.println("Entering Deep Sleep...");
 
-  Serial.flush();
+    Serial.flush();
 
-  esp_deep_sleep_start();
+    esp_deep_sleep_start();
 }
 
 // ============================================================
@@ -254,47 +254,47 @@ void enterDeepSleep()
 
 uint32_t getAbsoluteAcceleration()
 {
-  // --------------------------------------------------------
-  // Convert sensor floats into fixed-point integers
-  // --------------------------------------------------------
+    // --------------------------------------------------------
+    // Convert sensor floats into fixed-point integers
+    // --------------------------------------------------------
 
-  int32_t ax =
-      (int32_t)(imu.accel_x_mps2() * FP_SCALE);
+    int32_t ax =
+        (int32_t)(imu.accel_x_mps2() * FP_SCALE);
 
-  int32_t ay =
-      (int32_t)(imu.accel_y_mps2() * FP_SCALE);
+    int32_t ay =
+        (int32_t)(imu.accel_y_mps2() * FP_SCALE);
 
-  int32_t az =
-      (int32_t)(imu.accel_z_mps2() * FP_SCALE);
+    int32_t az =
+        (int32_t)(imu.accel_z_mps2() * FP_SCALE);
 
-  // --------------------------------------------------------
-  // Calculate:
-  //
-  // sqrt(ax^2 + ay^2 + az^2)
-  //
-  // --------------------------------------------------------
+    // --------------------------------------------------------
+    // Calculate:
+    //
+    // sqrt(ax^2 + ay^2 + az^2)
+    //
+    // --------------------------------------------------------
 
-  uint64_t sum = (int64_t)ax * ax + (int64_t)ay * ay + (int64_t)az * az;
-  uint32_t magnitude = (uint32_t)sqrt((double)sum);
+    uint64_t sum = (int64_t)ax * ax + (int64_t)ay * ay + (int64_t)az * az;
+    uint32_t magnitude = (uint32_t)sqrt((double)sum);
 
-  // --------------------------------------------------------
-  // Remove gravity
-  // --------------------------------------------------------
+    // --------------------------------------------------------
+    // Remove gravity
+    // --------------------------------------------------------
 
-  uint32_t movement;
+    uint32_t movement;
 
-  if (magnitude > GRAVITY_MSS)
-  {
-    movement =
-        magnitude - GRAVITY_MSS;
-  }
-  else
-  {
-    movement =
-        GRAVITY_MSS - magnitude;
-  }
+    if (magnitude > GRAVITY_MSS)
+    {
+        movement =
+            magnitude - GRAVITY_MSS;
+    }
+    else
+    {
+        movement =
+            GRAVITY_MSS - magnitude;
+    }
 
-  return movement;
+    return movement;
 }
 
 // ============================================================
@@ -313,28 +313,28 @@ uint32_t getAbsoluteAcceleration()
 uint32_t filterAcceleration(
     uint32_t acceleration)
 {
-  int32_t error =
-      (int32_t)acceleration -
-      (int32_t)filteredAcceleration;
+    int32_t error =
+        (int32_t)acceleration -
+        (int32_t)filteredAcceleration;
 
-  // error * 0.08 = error * 80/1000
-  // also known as: error * alpha / FilterScale
-  int32_t correction =
-      ((int32_t)FILTER_ALPHA * error) / (int32_t)FILTER_SCALE;
+    // error * 0.08 = error * 80/1000
+    // also known as: error * alpha / FilterScale
+    int32_t correction =
+        ((int32_t)FILTER_ALPHA * error) / (int32_t)FILTER_SCALE;
 
-  int32_t result =
-      (int32_t)filteredAcceleration +
-      correction;
+    int32_t result =
+        (int32_t)filteredAcceleration +
+        correction;
 
-  if (result < 0)
-  {
-    result = 0;
-  }
+    if (result < 0)
+    {
+        result = 0;
+    }
 
-  filteredAcceleration =
-      (uint32_t)result;
+    filteredAcceleration =
+        (uint32_t)result;
 
-  return filteredAcceleration;
+    return filteredAcceleration;
 }
 
 // ============================================================
@@ -355,72 +355,71 @@ uint32_t filterAcceleration(
 CRGB accelerationToColor(
     uint32_t acceleration)
 {
-  // --------------------------------------------------------
-  // Deadzone
-  // --------------------------------------------------------
+    // --------------------------------------------------------
+    // Deadzone
+    // --------------------------------------------------------
 
-  if (acceleration < DEADZONE_MSS)
-  {
-    acceleration = 0;
-  }
+    if (acceleration < DEADZONE_MSS)
+    {
+        acceleration = 0;
+    }
 
-  // --------------------------------------------------------
-  // Update maximum
-  // --------------------------------------------------------
+    // --------------------------------------------------------
+    // Update maximum
+    // --------------------------------------------------------
 
-  if (acceleration > MAX_ACCL_MSS)
-  {
-    MAX_ACCL_MSS = acceleration;
-  }
-  else if( MAX_ACCL_MSS > 18000)
-  {
-    // only decrease if we are above baseline
-    MAX_ACCL_MSS -= 10;
-  }
+    if (acceleration > MAX_ACCL_MSS)
+    {
+        MAX_ACCL_MSS = acceleration;
+    }
+    else if (MAX_ACCL_MSS > 18000)
+    {
+        // only decrease if we are above baseline
+        MAX_ACCL_MSS -= 10;
+    }
 
-  // --------------------------------------------------------
-  // Avoid division by zero
-  // --------------------------------------------------------
+    // --------------------------------------------------------
+    // Avoid division by zero
+    // --------------------------------------------------------
 
-  if (MAX_ACCL_MSS == 0)
-  {
-    return CRGB::Blue;
-  }
+    if (MAX_ACCL_MSS == 0)
+    {
+        return CRGB::Blue;
+    }
 
-  // --------------------------------------------------------
-  // Normalize:
-  //
-  // 0 -> 1000
-  //
-  // 0 = minimum
-  // 1000 = maximum
-  // --------------------------------------------------------
+    // --------------------------------------------------------
+    // Normalize:
+    //
+    // 0 -> 1000
+    //
+    // 0 = minimum
+    // 1000 = maximum
+    // --------------------------------------------------------
 
-  uint32_t normalized =
-      ((uint64_t)acceleration * NORMALIZED_SCALE) / MAX_ACCL_MSS;
+    uint32_t normalized =
+        ((uint64_t)acceleration * NORMALIZED_SCALE) / MAX_ACCL_MSS;
 
-  if (normalized > 1000)
-  {
-    normalized = 1000;
-  }
+    if (normalized > 1000)
+    {
+        normalized = 1000;
+    }
 
-  // --------------------------------------------------------
-  // Hue:
-  //
-  // 160 = blue
-  // 255 = red
-  //
-  // 160 + 95 = 255
-  // --------------------------------------------------------
+    // --------------------------------------------------------
+    // Hue:
+    //
+    // 160 = blue
+    // 255 = red
+    //
+    // 160 + 95 = 255
+    // --------------------------------------------------------
 
-  
-  uint8_t hue =
-      160 - ((normalized * 160UL) / NORMALIZED_SCALE);
+    uint8_t hue =
+        160 - ((normalized * 160UL) / NORMALIZED_SCALE);
 
-  return CHSV(
-      hue,
-      255,
-      255);
+    return CHSV(
+        hue,
+        255,
+        255);
 }
 
 // ============================================================
@@ -430,16 +429,16 @@ CRGB accelerationToColor(
 void updateLEDs(
     uint32_t acceleration)
 {
-  CRGB color =
-      accelerationToColor(
-          acceleration);
+    CRGB color =
+        accelerationToColor(
+            acceleration);
 
-  for (uint8_t i = 0; i < NUM_LEDS; i++)
-  {
-    leds[i] = color;
-  }
+    for (uint8_t i = 0; i < NUM_LEDS; i++)
+    {
+        leds[i] = color;
+    }
 
-  FastLED.show();
+    FastLED.show();
 }
 
 // ============================================================
@@ -448,320 +447,322 @@ void updateLEDs(
 
 void setup()
 {
-  // --------------------------------------------------------
-  // Serial
-  // --------------------------------------------------------
+    // --------------------------------------------------------
+    // Serial
+    // --------------------------------------------------------
 
-  Serial.begin(115200);
-
-  delay(100);
-
-  Serial.println();
-  Serial.println("==============================");
-  Serial.println("ESP32-C3 POI");
-  Serial.println("==============================");
-
-  // --------------------------------------------------------
-  // Determine wake reason
-  // --------------------------------------------------------
-
-  esp_sleep_wakeup_cause_t wakeReason =
-      esp_sleep_get_wakeup_cause();
-
-  if (wakeReason == ESP_SLEEP_WAKEUP_GPIO)
-  {
-    Serial.println(
-        "Wakeup: MOTION");
-  }
-  else
-  {
-    Serial.println(
-        "Wakeup: POWER ON / RESET");
-  }
-
-  // --------------------------------------------------------
-  // GPIO
-  // --------------------------------------------------------
-
-  pinMode(
-      IMU_INT_PIN,
-      INPUT_PULLDOWN);
-
-  pinMode(
-      STATUS_LED_PIN,
-      OUTPUT);
-
-  // Status LED on
-  digitalWrite(
-      STATUS_LED_PIN,
-      LOW);
-
-  // --------------------------------------------------------
-  // I2C
-  // --------------------------------------------------------
-
-  Wire.begin(
-      IMU_SDA_PIN,
-      IMU_SCL_PIN);
-
-  Wire.setClock(400000);
-
-  // --------------------------------------------------------
-  // MPU9250
-  // --------------------------------------------------------
-
-  Serial.println(
-      "Initializing MPU9250...");
-
-  imu.Config(
-      &Wire,
-      bfs::Mpu9250::I2C_ADDR_PRIM);
-
-  while (!imu.Begin())
-  {
-    Serial.println(
-        "MPU9250 initialization FAILED!");
-
-    delay(500);
-  }
-
-  Serial.println(
-      "MPU9250 initialized.");
-
-  // --------------------------------------------------------
-  // Sample rate
-  // --------------------------------------------------------
-
-  while (!imu.ConfigSrd(19))
-  {
-    Serial.println(
-        "Error configuring SRD");
+    Serial.begin(115200);
 
     delay(100);
-  }
 
-  // --------------------------------------------------------
-  // BLE
-  // --------------------------------------------------------
+    Serial.println();
+    Serial.println("==============================");
+    Serial.println("ESP32-C3 POI");
+    Serial.println("==============================");
 
-  Serial.println(
-      "Starting BLE...");
+    setCpuFrequencyMhz(80);
 
-  ble_driver =
-      &getBLEDriverInstance();
+    // --------------------------------------------------------
+    // Determine wake reason
+    // --------------------------------------------------------
 
-  ble_driver->begin(
-      BLE_DEVICE_NAME,
-      BLE_SERVICE_UUID,
-      BLE_CHAR_UUID);
+    esp_sleep_wakeup_cause_t wakeReason =
+        esp_sleep_get_wakeup_cause();
 
-  // --------------------------------------------------------
-  // FastLED
-  // --------------------------------------------------------
+    if (wakeReason == ESP_SLEEP_WAKEUP_GPIO)
+    {
+        Serial.println(
+            "Wakeup: MOTION");
+    }
+    else
+    {
+        Serial.println(
+            "Wakeup: POWER ON / RESET");
+    }
 
-  FastLED.addLeds<
-             WS2811,
-             DATA_PIN,
-             GRB>(
-             leds,
-             NUM_LEDS)
-      .setCorrection(
-          TypicalLEDStrip);
+    // --------------------------------------------------------
+    // GPIO
+    // --------------------------------------------------------
 
-  FastLED.setBrightness(
-      LED_BRIGHTNESS);
+    pinMode(
+        IMU_INT_PIN,
+        INPUT_PULLDOWN);
 
-  FastLED.clear();
-  FastLED.show();
+    pinMode(
+        STATUS_LED_PIN,
+        OUTPUT);
 
-  // --------------------------------------------------------
-  // Reset runtime timers
-  // --------------------------------------------------------
+    // Status LED on
+    digitalWrite(
+        STATUS_LED_PIN,
+        LOW);
 
-  lastMotionTime =
-      millis();
+    // --------------------------------------------------------
+    // MPU9250
+    // --------------------------------------------------------
+    Wire.begin(
+        IMU_SDA_PIN,
+        IMU_SCL_PIN);
 
-  lastLedUpdate =
-      millis();
+    Wire.setClock(400000);
 
-  Serial.println(
-      "Setup complete.");
+    Serial.println(
+        "Initializing MPU9250...");
 
-  Serial.println();
+    imu.Config(
+        &Wire,
+        bfs::Mpu9250::I2C_ADDR_PRIM);
+
+    while (!imu.Begin())
+    {
+        Serial.println(
+            "MPU9250 initialization FAILED!");
+
+        delay(500);
+    }
+
+    Serial.println(
+        "MPU9250 initialized.");
+
+    // --------------------------------------------------------
+    // Sample rate
+    // --------------------------------------------------------
+
+    while (!imu.ConfigSrd(19))
+    {
+        Serial.println(
+            "Error configuring SRD");
+
+        delay(100);
+    }
+
+    // --------------------------------------------------------
+    // BLE
+    // --------------------------------------------------------
+
+    Serial.println(
+        "Starting BLE...");
+
+    ble_driver =
+        &getBLEDriverInstance();
+
+    ble_driver->begin(
+        BLE_DEVICE_NAME,
+        BLE_SERVICE_UUID,
+        BLE_CHAR_UUID);
+
+    // --------------------------------------------------------
+    // FastLED
+    // --------------------------------------------------------
+
+    FastLED.addLeds<
+               WS2812B,
+               DATA_PIN,
+               GRB>(
+               leds,
+               NUM_LEDS)
+        .setCorrection(
+            TypicalLEDStrip);
+
+    FastLED.setBrightness(
+        LED_BRIGHTNESS);
+
+    FastLED.clear();
+    FastLED.show();
+
+    updateLEDs(888000);
+    while (1)
+    {
+    }
+
+    // --------------------------------------------------------
+    // Reset runtime timers
+    // --------------------------------------------------------
+
+    lastMotionTime =
+        millis();
+
+    lastLedUpdate =
+        millis();
+
+    Serial.println(
+        "Setup complete.");
+
+    Serial.println();
 }
 
 void loop()
 {
-  // --------------------------------------------------------
-  // Status LED ON
-  // --------------------------------------------------------
+    // --------------------------------------------------------
+    // Status LED ON
+    // --------------------------------------------------------
 
-  digitalWrite(
-      STATUS_LED_PIN,
-      LOW);
+    digitalWrite(
+        STATUS_LED_PIN,
+        LOW);
 
-  // --------------------------------------------------------
-  // Read IMU
-  // --------------------------------------------------------
+    // --------------------------------------------------------
+    // Read IMU
+    // --------------------------------------------------------
 
-  if (imu.Read())
-  {
-    // ----------------------------------------------------
-    // Acceleration
-    // ----------------------------------------------------
-
-    uint32_t acceleration =
-        getAbsoluteAcceleration();
-
-    // ----------------------------------------------------
-    // Filter
-    // ----------------------------------------------------
-
-    uint32_t filtered =
-        filterAcceleration(
-            acceleration);
-
-    // ----------------------------------------------------
-    // LED update
-    // ----------------------------------------------------
-
-    uint32_t now =
-        millis();
-
-    if (
-        now - lastLedUpdate >= LED_UPDATE_MS)
+    if (imu.Read())
     {
-      lastLedUpdate =
-          now;
+        // ----------------------------------------------------
+        // Acceleration
+        // ----------------------------------------------------
 
-      updateLEDs(
-          filtered);
+        uint32_t acceleration =
+            getAbsoluteAcceleration();
+
+        // ----------------------------------------------------
+        // Filter
+        // ----------------------------------------------------
+
+        uint32_t filtered =
+            filterAcceleration(
+                acceleration);
+
+        // ----------------------------------------------------
+        // LED update
+        // ----------------------------------------------------
+
+        uint32_t now =
+            millis();
+
+        if (
+            now - lastLedUpdate >= LED_UPDATE_MS)
+        {
+            lastLedUpdate =
+                now;
+
+            updateLEDs(
+                filtered);
+        }
+
+        // ----------------------------------------------------
+        // Motion detection
+        // ----------------------------------------------------
+
+        if (
+            acceleration >=
+            MINIMUM_ACCL_MSS)
+        {
+            lastMotionTime =
+                millis();
+        }
+
+        // ----------------------------------------------------
+        // Deep Sleep
+        // ----------------------------------------------------
+
+        if (
+            millis() - lastMotionTime >= NO_MOTION_TIMEOUT_MS)
+        {
+            enterDeepSleep();
+        }
     }
 
-    // ----------------------------------------------------
-    // Motion detection
-    // ----------------------------------------------------
+    // ========================================================
+    // BLE
+    // ========================================================
 
     if (
-        acceleration >=
-        MINIMUM_ACCL_MSS)
+        ble_driver != nullptr &&
+        ble_driver->connected())
     {
-      lastMotionTime =
-          millis();
+        // ----------------------------------------------------
+        // MPU9250 temperature
+        //
+        // Send as normal float string, no computation done on value
+        // ----------------------------------------------------
+
+        float mpuTemp =
+            imu.die_temp_c();
+
+        char buff[16];
+
+        snprintf(
+            buff,
+            sizeof(buff),
+            "%.2f",
+            mpuTemp);
+
+        ble_driver->sendDataPacket(
+            &buff,
+            strlen(buff) + 1);
+
+        // ----------------------------------------------------
+        // Receive new filter setting
+        // Expected values are: [0, 1000]
+        // ----------------------------------------------------
+
+        if (
+            ble_driver->available())
+        {
+            String msg =
+                ble_driver->get_received();
+
+            uint32_t alpha =
+                msg.toInt();
+
+            // ------------------------------------------------
+            // Limit to sensible range
+            // ------------------------------------------------
+
+            if (alpha < 1)
+            {
+                alpha = 1;
+            }
+            else if (alpha > 1000)
+            {
+                alpha = 1000;
+            }
+
+            FILTER_ALPHA =
+                alpha;
+
+            Serial.print(
+                "New FILTER_ALPHA: ");
+
+            Serial.println(
+                FILTER_ALPHA);
+        }
     }
 
-    // ----------------------------------------------------
-    // Deep Sleep
-    // ----------------------------------------------------
+    // ========================================================
+    // ESP32-C3 TEMPERATURE
+    // ========================================================
+
+    static uint32_t lastTempPrint = 0;
 
     if (
-        millis() - lastMotionTime >= NO_MOTION_TIMEOUT_MS)
+        millis() - lastTempPrint >= 2000)
     {
-      enterDeepSleep();
+        lastTempPrint = millis();
+
+        float espTemp = temperatureRead();
+
+        Serial.print("ESP32-C3 temp: ");
+        Serial.print(espTemp, 2);
+        Serial.println("°C");
+
+        Serial.print("MPU9250 temp: ");
+        Serial.print(imu.die_temp_c(), 2);
+        Serial.println("°C");
+
+        Serial.print("absAccl: ");
+        Serial.print(getAbsoluteAcceleration());
+
+        Serial.print("\tfilter: ");
+        Serial.print(filteredAcceleration);
+
+        Serial.print("\tmax: ");
+        Serial.println(MAX_ACCL_MSS);
     }
-  }
 
-  // ========================================================
-  // BLE
-  // ========================================================
+    // --------------------------------------------------------
+    // Small delay
+    // --------------------------------------------------------
 
-  if (
-      ble_driver != nullptr &&
-      ble_driver->connected())
-  {
-    // ----------------------------------------------------
-    // MPU9250 temperature
-    //
-    // Send as normal float string, no computation done on value
-    // ----------------------------------------------------
-
-    float mpuTemp =
-        imu.die_temp_c();
-
-    char buff[16];
-
-    snprintf(
-        buff,
-        sizeof(buff),
-        "%.2f",
-        mpuTemp);
-
-    ble_driver->sendDataPacket(
-        &buff,
-        strlen(buff) + 1);
-
-    // ----------------------------------------------------
-    // Receive new filter setting
-    // Expected values are: [0, 1000]
-    // ----------------------------------------------------
-
-    if (
-        ble_driver->available())
-    {
-      String msg =
-          ble_driver->get_received();
-
-      uint32_t alpha =
-          msg.toInt();
-
-      // ------------------------------------------------
-      // Limit to sensible range
-      // ------------------------------------------------
-
-      if (alpha < 1)
-      {
-        alpha = 1;
-      }
-      else if (alpha > 1000)
-      {
-        alpha = 1000;
-      }
-
-      FILTER_ALPHA =
-          alpha;
-
-      Serial.print(
-          "New FILTER_ALPHA: ");
-
-      Serial.println(
-          FILTER_ALPHA);
-    }
-  }
-
-  // ========================================================
-  // ESP32-C3 TEMPERATURE
-  // ========================================================
-
-  static uint32_t lastTempPrint = 0;
-
-  if (
-      millis() - lastTempPrint >= 2000)
-  {
-    lastTempPrint = millis();
-
-    float espTemp = temperatureRead();
-
-    Serial.print("ESP32-C3 temp: ");
-    Serial.print(espTemp, 2);
-    Serial.println("°C");
-
-    Serial.print("MPU9250 temp: ");
-    Serial.print(imu.die_temp_c(), 2);
-    Serial.println("°C");
-
-    Serial.print("absAccl: ");
-    Serial.print(getAbsoluteAcceleration());
-
-    Serial.print("\tfilter: ");
-    Serial.print(filteredAcceleration);
-
-    Serial.print("\tmax: ");
-    Serial.println(MAX_ACCL_MSS);
-  }
-
-  // --------------------------------------------------------
-  // Small delay
-  // --------------------------------------------------------
-
-  delay(20);
+    delay(20);
 }
