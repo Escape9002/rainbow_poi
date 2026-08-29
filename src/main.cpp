@@ -179,7 +179,10 @@ void enterDeepSleep()
     Serial.println("Enabling MPU9250 WOM...");
 
     // Switch imu to Low Power WOM Mode
-    imu.EnableWom(40, bfs::Mpu9250::WOM_RATE_250HZ);
+    // threshold in mg, also, theres a max-value, as per code:
+    // > /* Check threshold in limits, 4 - 1020 mg */
+    // WOM Rate is more or less sensitivity!
+    imu.EnableWom(1020, bfs::Mpu9250::WOM_RATE_15_63HZ);
 
     // --------------------------------------------------------
     // Configure MPU9250 interrupt
@@ -569,11 +572,6 @@ void setup()
 
     FastLED.clear();
     FastLED.show();
-
-    updateLEDs(888000);
-    while (1)
-    {
-    }
 
     // --------------------------------------------------------
     // Reset runtime timers
