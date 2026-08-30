@@ -1,0 +1,15 @@
+{
+  "$schema": "https://raw.githubusercontent.com/platformio/platformio-core/develop/platformio/assets/schema/library.json",
+  "name": "ColorMapper",
+  "version": "0.0.1",
+  "description": "Functions to map values to colors, using HSV",
+  "keywords": "hsv, color, mapping",
+  "authors": {
+    "name": "Antonio Rehwinkel",
+    "email": "antonio.rehwinkel@mailbox.tu-dresden.de",
+    "url": "https://github.com/Escape9002"
+  },
+  "dependencies": {},
+  "frameworks": "",
+  "platforms": "*"
+}
