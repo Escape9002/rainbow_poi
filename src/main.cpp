@@ -11,7 +11,7 @@
 
 #include <FastLED.h>
 
-#include "HSV.h"
+#include <HSV.h>
 
 // ============================================================
 // HARDWARE CONFIGURATION
@@ -418,11 +418,14 @@ CRGB accelerationToColor(
     // 160 + 95 = 255
     // --------------------------------------------------------
 
-    uint8_t hue =
-        160 - ((normalized * 160UL) / NORMALIZED_SCALE);
+    // uint8_t hue =
+    //     160 - ((normalized * 160UL) / NORMALIZED_SCALE);
+
+    HSV hsv = HSV();
+    hsv.hueMapper(255, 160, normalized);
 
     return CHSV(
-        hue,
+        hsv.hue,
         255,
         255);
 }

@@ -1,6 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/platformio/platformio-core/develop/platformio/assets/schema/library.json",
-  "name": "ColorMapper",
+  "name": "HSV",
   "version": "0.0.1",
   "description": "Functions to map values to colors, using HSV",
   "keywords": "hsv, color, mapping",

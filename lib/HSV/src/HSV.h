@@ -15,7 +15,7 @@ struct HSV
      * @param value 0-1000
      * @return HSV
      */
-    void hueMapper(uint16_t min, uint16_t max, uint32_t value)
+    public:void hueMapper(uint16_t min, uint16_t max, uint32_t value)
     {
         // limit to the allowed maximum value
         if (value > 1000)
@@ -23,16 +23,21 @@ struct HSV
             value = 1000;
         }
 
-        // TODO should we catch the min,max outofrange errors?
+        int32_t signed_min = (int32_t) min;
+        int32_t signed_max = (int32_t) max;
+        int32_t signed_value = (int32_t) value;
 
-        /**
-         * Hue: [0 - 360]
-         *
-         * hue = ((max - min) * value) / 1000
-         */
-
+        
+        int32_t mapped = signed_min - ((signed_min-signed_max)*signed_value) / 1000;
         // explizit wrap around, since hue is defined on a color-wheel
-        hue = (((max - min) * value) / 1000) % 360;
+        mapped %= 360;
+
+        // ensure mapped is positive value
+        if(mapped < 0 ){
+            mapped += 360;
+        }
+
+        hue = (uint16_t) mapped;
     }
 
     /**
