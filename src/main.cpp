@@ -281,52 +281,12 @@ uint32_t getAbsoluteAcceleration()
 }
 
 // ============================================================
-// LOW PASS FILTER
+// ACCELERATION -> NORMALIZED_ACCL
 // ============================================================
-//
-//
-// filtered += alpha * (input - filtered)
-//
-// alpha is represented as:
-//
-//     80 / 1000 = 0.08
-//
-// ============================================================
+// normalized is 0-1000
 
-uint32_t filterAcceleration(
-    uint32_t acceleration)
+uint32_t accelerationNormalizer(uint32_t acceleration)
 {
-
-    static LowPass lPass = LowPass(80);
-    int32_t result = lPass.filter(acceleration);
-    if (result < 0)
-    {
-        return 0;
-    }
-    return result;
-}
-
-// ============================================================
-// ACCELERATION -> COLOR
-// ============================================================
-//
-// Blue  -> low acceleration
-// Purple -> medium acceleration
-// Red   -> high acceleration
-//
-// FastLED hue:
-//     160 = blue
-//     192 = purple
-//     255 = red
-//
-// ============================================================
-
-CRGB accelerationToColor(
-    uint32_t acceleration)
-{
-    // --------------------------------------------------------
-    // Deadzone
-    // --------------------------------------------------------
 
     if (acceleration < DEADZONE_MSS)
     {
@@ -348,15 +308,6 @@ CRGB accelerationToColor(
     }
 
     // --------------------------------------------------------
-    // Avoid division by zero
-    // --------------------------------------------------------
-
-    if (MAX_ACCL_MSS == 0)
-    {
-        return CRGB::Blue;
-    }
-
-    // --------------------------------------------------------
     // Normalize:
     //
     // 0 -> 1000
@@ -373,17 +324,7 @@ CRGB accelerationToColor(
         normalized = 1000;
     }
 
-    // --------------------------------------------------------
-    // Hue:
-    // --------------------------------------------------------
-
-    static HSV hsv = HSV();
-    hsv.hueMapper(255, 160, normalized);
-
-    return CHSV(
-        hsv.hue,
-        255,
-        255);
+    return normalized;
 }
 
 // ============================================================
@@ -393,7 +334,14 @@ CRGB accelerationToColor(
 void updateLEDs(
     uint32_t acceleration)
 {
-    CRGB color = accelerationToColor(acceleration);
+    uint32_t normalized_accl = accelerationNormalizer(acceleration);
+
+    static HSV hsv = HSV();
+
+    CRGB color = CHSV(
+        hsv.hueMapper(160, 360, normalized_accl),
+        255,
+        255);
 
     for (uint8_t i = 0; i < NUM_LEDS; i++)
     {
@@ -539,7 +487,10 @@ void loop()
     {
         uint32_t acceleration = getAbsoluteAcceleration();
 
-        uint32_t filtered = filterAcceleration(acceleration);
+        static LowPass lPass = LowPass(80);
+        int32_t signed_filtered =  lPass.filter(acceleration);
+        uint32_t filtered = (signed_filtered < 0 ? 0 : signed_filtered);
+         
 
         // ----------------------------------------------------
         // LED update
