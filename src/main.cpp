@@ -91,23 +91,6 @@ CRGB leds[NUM_LEDS];
 #define MINIMUM_ACCL_MSS DEADZONE_MSS
 
 // ============================================================
-// FILTER
-// ============================================================
-//
-// Alpha:
-//
-//     0.08 = 80 / 1000
-//
-// Lower = smoother
-// Higher = faster
-//
-// ============================================================
-
-#define FILTER_SCALE 1000UL
-
-RTC_DATA_ATTR uint32_t FILTER_ALPHA = 80;
-
-// ============================================================
 // HSV CONVERSION RANGE
 // ============================================================
 #define NORMALIZED_SCALE 1000UL
@@ -129,12 +112,6 @@ uint32_t MAX_ACCL_MSS = 18000;
 #define NO_MOTION_TIMEOUT_MS 10000UL
 
 uint32_t lastMotionTime = 0;
-
-// ============================================================
-// FILTER STATE
-// ============================================================
-
-uint32_t filteredAcceleration = 0;
 
 // ============================================================
 // LED UPDATE
@@ -416,9 +393,7 @@ CRGB accelerationToColor(
 void updateLEDs(
     uint32_t acceleration)
 {
-    CRGB color =
-        accelerationToColor(
-            acceleration);
+    CRGB color = accelerationToColor(acceleration);
 
     for (uint8_t i = 0; i < NUM_LEDS; i++)
     {
@@ -458,24 +433,20 @@ void setup()
 
     if (wakeReason == ESP_SLEEP_WAKEUP_GPIO)
     {
-        Serial.println(
-            "Wakeup: MOTION");
+        Serial.println("Wakeup: MOTION");
     }
     else
     {
-        Serial.println(
-            "Wakeup: POWER ON / RESET");
+        Serial.println("Wakeup: POWER ON / RESET");
     }
 
     // --------------------------------------------------------
     // BLE
     // --------------------------------------------------------
 
-    Serial.println(
-        "Starting BLE...");
+    Serial.println("Starting BLE...");
 
-    ble_driver =
-        &getBLEDriverInstance();
+    ble_driver = &getBLEDriverInstance();
 
     ble_driver->begin(
         BLE_DEVICE_NAME,
@@ -486,18 +457,12 @@ void setup()
     // GPIO
     // --------------------------------------------------------
 
-    pinMode(
-        IMU_INT_PIN,
-        INPUT_PULLDOWN);
+    pinMode(IMU_INT_PIN, INPUT_PULLDOWN);
 
-    pinMode(
-        STATUS_LED_PIN,
-        OUTPUT);
+    pinMode(STATUS_LED_PIN, OUTPUT);
 
     // Status LED on
-    digitalWrite(
-        STATUS_LED_PIN,
-        LOW);
+    digitalWrite(STATUS_LED_PIN, LOW);
 
     // --------------------------------------------------------
     // MPU9250
@@ -508,8 +473,7 @@ void setup()
 
     Wire.setClock(400000);
 
-    Serial.println(
-        "Initializing MPU9250...");
+    Serial.println("Initializing MPU9250...");
 
     imu.Config(
         &Wire,
@@ -517,14 +481,12 @@ void setup()
 
     while (!imu.Begin())
     {
-        Serial.println(
-            "MPU9250 initialization FAILED!");
+        Serial.println("MPU9250 initialization FAILED!");
 
         delay(500);
     }
 
-    Serial.println(
-        "MPU9250 initialized.");
+    Serial.println("MPU9250 initialized.");
 
     // --------------------------------------------------------
     // Sample rate
@@ -532,9 +494,7 @@ void setup()
 
     while (!imu.ConfigSrd(19))
     {
-        Serial.println(
-            "Error configuring SRD");
-
+        Serial.println("Error configuring SRD");
         delay(100);
     }
 
@@ -558,30 +518,18 @@ void setup()
     FastLED.show();
 
     // --------------------------------------------------------
-    // Reset runtime timers
+    // Init runtime timers
     // --------------------------------------------------------
 
-    lastMotionTime =
-        millis();
+    lastMotionTime = millis();
+    lastLedUpdate = millis();
 
-    lastLedUpdate =
-        millis();
-
-    Serial.println(
-        "Setup complete.");
-
-    Serial.println();
+    Serial.println("Setup complete.");
 }
 
 void loop()
 {
-    // --------------------------------------------------------
-    // Status LED ON
-    // --------------------------------------------------------
-
-    digitalWrite(
-        STATUS_LED_PIN,
-        LOW);
+    digitalWrite(STATUS_LED_PIN, LOW);
 
     // --------------------------------------------------------
     // Read IMU
@@ -589,36 +537,22 @@ void loop()
 
     if (imu.Read())
     {
-        // ----------------------------------------------------
-        // Acceleration
-        // ----------------------------------------------------
+        uint32_t acceleration = getAbsoluteAcceleration();
 
-        uint32_t acceleration =
-            getAbsoluteAcceleration();
-
-        // ----------------------------------------------------
-        // Filter
-        // ----------------------------------------------------
-
-        uint32_t filtered =
-            filterAcceleration(
-                acceleration);
+        uint32_t filtered = filterAcceleration(acceleration);
 
         // ----------------------------------------------------
         // LED update
         // ----------------------------------------------------
 
-        uint32_t now =
-            millis();
+        uint32_t now = millis();
 
         if (
             now - lastLedUpdate >= LED_UPDATE_MS)
         {
-            lastLedUpdate =
-                now;
+            lastLedUpdate = now;
 
-            updateLEDs(
-                filtered);
+            updateLEDs(filtered);
         }
 
         // ----------------------------------------------------
@@ -626,19 +560,16 @@ void loop()
         // ----------------------------------------------------
 
         if (
-            acceleration >=
-            MINIMUM_ACCL_MSS)
+            acceleration >= MINIMUM_ACCL_MSS)
         {
-            lastMotionTime =
-                millis();
+            lastMotionTime = millis();
         }
 
         // ----------------------------------------------------
         // Deep Sleep
         // ----------------------------------------------------
 
-        if (
-            millis() - lastMotionTime >= NO_MOTION_TIMEOUT_MS)
+        if (millis() - lastMotionTime >= NO_MOTION_TIMEOUT_MS)
         {
             enterDeepSleep();
         }
@@ -658,8 +589,7 @@ void loop()
         // Send as normal float string, no computation done on value
         // ----------------------------------------------------
 
-        float mpuTemp =
-            imu.die_temp_c();
+        float mpuTemp = imu.die_temp_c();
 
         char buff[16];
 
@@ -678,36 +608,29 @@ void loop()
         // Expected values are: [0, 1000]
         // ----------------------------------------------------
 
-        if (
-            ble_driver->available())
+        if (ble_driver->available())
         {
-            String msg =
-                ble_driver->get_received();
+            String msg = ble_driver->get_received();
 
-            uint32_t alpha =
-                msg.toInt();
+            uint32_t alpha = msg.toInt();
 
             // ------------------------------------------------
             // Limit to sensible range
             // ------------------------------------------------
 
-            if (alpha < 1)
+            if (alpha < 0)
             {
-                alpha = 1;
+                alpha = 0;
             }
             else if (alpha > 1000)
             {
                 alpha = 1000;
             }
 
-            FILTER_ALPHA =
-                alpha;
+            // TODO implement BLE Change of lowpass alpha
 
-            Serial.print(
-                "New FILTER_ALPHA: ");
-
-            Serial.println(
-                FILTER_ALPHA);
+            // Serial.print("New FILTER_ALPHA: ");
+            // Serial.println(FILTER_ALPHA);
         }
     }
 
@@ -734,9 +657,6 @@ void loop()
 
         Serial.print("absAccl: ");
         Serial.print(getAbsoluteAcceleration());
-
-        Serial.print("\tfilter: ");
-        Serial.print(filteredAcceleration);
 
         Serial.print("\tmax: ");
         Serial.println(MAX_ACCL_MSS);
