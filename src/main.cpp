@@ -12,6 +12,7 @@
 #include <FastLED.h>
 
 #include <HSV.h>
+#include <LowPass.h>
 
 // ============================================================
 // HARDWARE CONFIGURATION
@@ -318,28 +319,14 @@ uint32_t getAbsoluteAcceleration()
 uint32_t filterAcceleration(
     uint32_t acceleration)
 {
-    int32_t error =
-        (int32_t)acceleration -
-        (int32_t)filteredAcceleration;
 
-    // error * 0.08 = error * 80/1000
-    // also known as: error * alpha / FilterScale
-    int32_t correction =
-        ((int32_t)FILTER_ALPHA * error) / (int32_t)FILTER_SCALE;
-
-    int32_t result =
-        (int32_t)filteredAcceleration +
-        correction;
-
+    static LowPass lPass = LowPass(80);
+    int32_t result = lPass.filter(acceleration);
     if (result < 0)
     {
-        result = 0;
+        return 0;
     }
-
-    filteredAcceleration =
-        (uint32_t)result;
-
-    return filteredAcceleration;
+    return result;
 }
 
 // ============================================================
@@ -411,17 +398,9 @@ CRGB accelerationToColor(
 
     // --------------------------------------------------------
     // Hue:
-    //
-    // 160 = blue
-    // 255 = red
-    //
-    // 160 + 95 = 255
     // --------------------------------------------------------
 
-    // uint8_t hue =
-    //     160 - ((normalized * 160UL) / NORMALIZED_SCALE);
-
-    HSV hsv = HSV();
+    static HSV hsv = HSV();
     hsv.hueMapper(255, 160, normalized);
 
     return CHSV(
