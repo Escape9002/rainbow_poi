@@ -468,6 +468,21 @@ void setup()
     }
 
     // --------------------------------------------------------
+    // BLE
+    // --------------------------------------------------------
+
+    Serial.println(
+        "Starting BLE...");
+
+    ble_driver =
+        &getBLEDriverInstance();
+
+    ble_driver->begin(
+        BLE_DEVICE_NAME,
+        BLE_SERVICE_UUID,
+        BLE_CHAR_UUID);
+
+    // --------------------------------------------------------
     // GPIO
     // --------------------------------------------------------
 
@@ -522,21 +537,6 @@ void setup()
 
         delay(100);
     }
-
-    // --------------------------------------------------------
-    // BLE
-    // --------------------------------------------------------
-
-    Serial.println(
-        "Starting BLE...");
-
-    ble_driver =
-        &getBLEDriverInstance();
-
-    ble_driver->begin(
-        BLE_DEVICE_NAME,
-        BLE_SERVICE_UUID,
-        BLE_CHAR_UUID);
 
     // --------------------------------------------------------
     // FastLED
