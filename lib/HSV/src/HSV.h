@@ -15,7 +15,7 @@ struct HSV
      * @param value 0-1000
      * @return HSV
      */
-    public:void hueMapper(uint16_t min, uint16_t max, uint32_t value)
+    uint16_t hueMapper(uint16_t min, uint16_t max, uint32_t value)
     {
         // limit to the allowed maximum value
         if (value > 1000)
@@ -38,6 +38,7 @@ struct HSV
         }
 
         hue = (uint16_t) mapped;
+        return hue;
     }
 
     /**
@@ -48,7 +49,7 @@ struct HSV
      * @param value 0-1000
      * @return HSV
      */
-    void saturationMapper(uint16_t min, uint16_t max, uint32_t value)
+    uint8_t saturationMapper(uint16_t min, uint16_t max, uint32_t value)
     {
         uint32_t exact_saturation = ((max - min) * value) / 1000;
 
@@ -59,6 +60,7 @@ struct HSV
         }
 
         saturation = (uint8_t)exact_saturation;
+        return saturation;
     }
 
     /**
@@ -69,7 +71,7 @@ struct HSV
      * @param value 0-1000
      * @return HSV
      */
-    void brightnessMapper(uint16_t min, uint16_t max, uint32_t value)
+    uint8_t brightnessMapper(uint16_t min, uint16_t max, uint32_t value)
     {
         uint32_t exact_brightness = ((max - min) * value) / 1000;
 
@@ -80,5 +82,6 @@ struct HSV
         }
 
         brightness = (uint8_t)exact_brightness;
+        return brightness;
     }
 };
