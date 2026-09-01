@@ -90,10 +90,23 @@ public:
         this->lPass.setAlpha(alpha);
     }
 
+    uint32_t getAlpha()
+    {
+        return lPass.getAlpha();
+    }
+
     void setColorRange(uint32_t min, uint32_t max)
     {
         this->min = min;
         this->max = max;
+    }
+
+    uint32_t getColorMin(){
+        return this->min;
+    }
+
+    uint32_t getColorMax(){
+        return this->max;
     }
 
     void setDynamicMax(bool state)

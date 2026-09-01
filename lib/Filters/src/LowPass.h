@@ -42,4 +42,8 @@ public:
     void setAlpha(uint32_t alpha){
         this->alpha = alpha;
     }
+
+    uint32_t getAlpha(){
+        return this->alpha;
+    }
 };

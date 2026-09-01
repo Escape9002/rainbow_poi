@@ -20,6 +20,13 @@ inline int32_t parseBLEString<int32_t>(const std::string &s)
 }
 
 template <>
+inline uint32_t parseBLEString<uint32_t>(const std::string &s)
+{
+    // std::strtol is safe without exceptions. static_cast is C++11 standard.
+    return static_cast<uint32_t>(std::strtol(s.c_str(), nullptr, 10));
+}
+
+template <>
 inline uint8_t parseBLEString<uint8_t>(const std::string &s)
 {
     // std::strtol is safe without exceptions. static_cast is C++11 standard.

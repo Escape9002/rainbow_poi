@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include <math.h>
-
+#include <vector>
 #include "mpu9250.h"
 #include "esp_sleep.h"
 #include <driver/gpio.h>
@@ -57,7 +57,8 @@ bfs::Mpu9250 imu(&Wire, bfs::Mpu9250::I2C_ADDR_PRIM);
 BleServer bleServer(BLE_SERVICE_UUID);
 
 // 2. Create our custom typed endpoint (initial value: 1.0f)
-BleEndpoint<float> endpointAlpha(BLE_CHAR_UUID, 1.0f, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
+BleEndpoint<uint32_t> endpointAlpha(BLE_CHAR_UUID, 80, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
+
 // Typ: uint8_t | Startwert: 100% | Rechte: Lesen & Benachrichtigen (Kein Schreiben vom Handy!)
 BleEndpoint<uint8_t> endpointBattery(
     BATTERY_CHAR_UUID, 
@@ -507,16 +508,17 @@ void loop()
     // BLE
     // ========================================================
 
-    bleServer.update();
+    for (BleEndpointBase* updated : bleServer.update()){
+        // TODO changed endpoint receiver
+    }
 
     // 5. Read the value directly and safely
-    static float lastAlpha = -1.0f;
-    float currentAlpha = endpointAlpha.getValue();
+    uint32_t newAlpha = endpointAlpha.getValue();
 
-    if (currentAlpha != lastAlpha)
+    if (newAlpha != poi_controller.getAlpha())
     {
-        lastAlpha = currentAlpha;
-        Serial.printf("[MAIN] Alpha updated to: %.2f\n", currentAlpha);
+        poi_controller.setAlpha(newAlpha);
+        Serial.printf("[MAIN] Alpha updated to: %.2f\n", endpointAlpha.getValue());
     }
 
       // Simuliere einen sinkenden Batteriestand alle 5 Sekunden

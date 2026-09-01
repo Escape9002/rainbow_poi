@@ -47,10 +47,18 @@ void BleServer::begin(const char* deviceName, std::initializer_list<BleEndpointB
     pAdv->start();
 }
 
-void BleServer::update() {
+const std::vector<BleEndpointBase*>&  BleServer::update() {
     // SERVER SYNCS ENDPOINTS:
     // Update every registered endpoint's thread-safe double-buffer
+    _updatedEndpoints.clear();
+    // list of references to the endpoints which where updated
+
+
     for (BleEndpointBase* ep : _endpoints) {
-        ep->update();
+        if (ep->update()) {
+            _updatedEndpoints.push_back(ep);
+        }
     }
+
+    return _updatedEndpoints; // C++11 RVO moves this safely without copying
 }
