@@ -51,13 +51,19 @@ bfs::Mpu9250 imu(&Wire, bfs::Mpu9250::I2C_ADDR_PRIM);
 
 #define BLE_CHAR_UUID \
     "309d5cfd-4ad1-45f6-81c8-fd6f512ae200"
+#define BATTERY_CHAR_UUID "2A19" // Standard BLE Battery Level UUID
 
 // 1. Create the server instance
 BleServer bleServer(BLE_SERVICE_UUID);
 
 // 2. Create our custom typed endpoint (initial value: 1.0f)
-BleEndpoint<float> endpointAlpha(BLE_CHAR_UUID, 1.0f);
-
+BleEndpoint<float> endpointAlpha(BLE_CHAR_UUID, 1.0f, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
+// Typ: uint8_t | Startwert: 100% | Rechte: Lesen & Benachrichtigen (Kein Schreiben vom Handy!)
+BleEndpoint<uint8_t> endpointBattery(
+    BATTERY_CHAR_UUID, 
+    100, 
+    NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY
+);
 // ============================================================
 // FASTLED
 // ============================================================
@@ -355,7 +361,7 @@ void setup()
 
     Serial.println("Starting BLE...");
 
-    bleServer.begin("AlphaController", {&endpointAlpha});
+    bleServer.begin("AlphaController", {&endpointAlpha, &endpointBattery});
 
     // ble_driver->begin(
     //     BLE_DEVICE_NAME,
@@ -511,5 +517,21 @@ void loop()
     {
         lastAlpha = currentAlpha;
         Serial.printf("[MAIN] Alpha updated to: %.2f\n", currentAlpha);
+    }
+
+      // Simuliere einen sinkenden Batteriestand alle 5 Sekunden
+    static uint32_t lastUpdate = 0;
+    if (millis() - lastUpdate > 5000) {
+        lastUpdate = millis();
+        
+        uint8_t currentBattery = endpointBattery.getValue();
+        if (currentBattery > 0) {
+            currentBattery -= 1; // Akku verliert 1%
+            
+            // Pusht den neuen Wert per Notify direkt auf das Handy!
+            endpointBattery.setValue(currentBattery); 
+            
+            Serial.printf("Batterie auf %d%% gesunken und gesendet!\n", currentBattery);
+        }
     }
 }

@@ -4,52 +4,41 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <string>
-#include <cstdlib> // C++11 Standard instead of stdlib.h
+#include <cstring> 
 
-// --- C++11 Template Specialization for String Parsing ---
-// 1. Declare the generic template
-template <typename T> 
-T parseBLEString(const std::string& s);
-
-// 2. Specialize for int32_t
-template <> 
-inline int32_t parseBLEString<int32_t>(const std::string& s) {
-    // std::strtol is safe without exceptions. static_cast is C++11 standard.
-    return static_cast<int32_t>(std::strtol(s.c_str(), nullptr, 10));
-}
-
-// 3. Specialize for float
-template <> 
-inline float parseBLEString<float>(const std::string& s) {
-    return std::strtof(s.c_str(), nullptr);
-}
-
-// --- Abstract Base Class ---
 class BleEndpointBase {
 public:
-    // C++11 standard requires virtual destructors for polymorphic base classes
     virtual ~BleEndpointBase() = default;
     virtual void attachToService(NimBLEService* pService) = 0;
     virtual bool update() = 0;
 };
 
-// --- Template Class ---
 template <typename T>
 class BleEndpoint : public BleEndpointBase, public NimBLECharacteristicCallbacks {
 private:
     std::string _uuid;
+    uint32_t _properties;
     T _bg_value;
     T _fg_value;
     bool _has_updates;
     SemaphoreHandle_t _mutex;
+    NimBLECharacteristic* _pChar;
 
 public:
-    BleEndpoint(const char* uuid, T initialValue) 
-        : _uuid(uuid), _bg_value(initialValue), _fg_value(initialValue), _has_updates(false) {
+    // ---------------------------------------------------------
+    // C++11 STANDARD: Delete copy constructor & assignment operator
+    // Prevents accidental copying which would cause Mutex double-deletion crashes.
+    // ---------------------------------------------------------
+    BleEndpoint(const BleEndpoint&) = delete;
+    BleEndpoint& operator=(const BleEndpoint&) = delete;
+
+    // C++11 STANDARD: Use const reference for initialValue
+    BleEndpoint(const char* uuid, const T& initialValue, uint32_t properties = NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE) 
+        : _uuid(uuid), _properties(properties), _bg_value(initialValue), _fg_value(initialValue), 
+          _has_updates(false), _pChar(nullptr) {
         _mutex = xSemaphoreCreateMutex();
     }
 
-    // Rule of Zero/Three/Five: If we create a Mutex, we must destroy it.
     ~BleEndpoint() override {
         if (_mutex != nullptr) {
             vSemaphoreDelete(_mutex);
@@ -57,21 +46,22 @@ public:
     }
 
     void attachToService(NimBLEService* pService) override {
-        NimBLECharacteristic* pChar = pService->createCharacteristic(
-            _uuid, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE
-        );
-        pChar->setCallbacks(this);
+        _pChar = pService->createCharacteristic(_uuid, _properties);
+        _pChar->setCallbacks(this);
         
-        // NimBLE prefers std::string for setting text values natively
-        pChar->setValue(std::to_string(_fg_value));
+        // NIMBLE 2.x STANDARD: NimBLE natively supports templates for setValue!
+        _pChar->setValue(_fg_value);
     }
 
     void onWrite(NimBLECharacteristic* pChar, NimBLEConnInfo& connInfo) override {
         std::string rxData = pChar->getValue();
+        
+        // Manual memcpy is kept here because it acts as a strict safety bounds-check
+        // ensuring the phone sent exactly sizeof(T) bytes before we write to memory.
         if (rxData.length() == sizeof(T)) {
             T incomingValue;
             memcpy(&incomingValue, rxData.data(), sizeof(T));
-
+            
             if (xSemaphoreTake(_mutex, portMAX_DELAY)) {
                 _bg_value = incomingValue;
                 _has_updates = true;
@@ -95,5 +85,20 @@ public:
 
     T getValue() const {
         return _fg_value;
+    }
+
+    // C++11 STANDARD: Pass newValue by const reference
+    void setValue(const T& newValue) {
+        _fg_value = newValue; 
+        
+        if (_pChar != nullptr) {
+            // NIMBLE 2.x STANDARD: Let NimBLE handle the byte casting
+            _pChar->setValue(newValue);
+            
+            // NIMBLE 2.x STANDARD: Support both Notify and Indicate
+            if ((_properties & NIMBLE_PROPERTY::NOTIFY) || (_properties & NIMBLE_PROPERTY::INDICATE)) {
+                _pChar->notify(); 
+            }
+        }
     }
 };
