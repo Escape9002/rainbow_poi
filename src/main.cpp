@@ -6,8 +6,8 @@
 #include "esp_sleep.h"
 #include <driver/gpio.h>
 
-#include "BLE-HAL.h"
-#include <BLEInterface.h>
+// #include "BLE-HAL.h"
+// #include <BLEInterface.h>
 
 #include <FastLED.h>
 
@@ -40,7 +40,9 @@ bfs::Mpu9250 imu(&Wire, bfs::Mpu9250::I2C_ADDR_PRIM);
 // ============================================================
 // BLE
 // ============================================================
-#include <NimBLEDevice.h>
+
+#include <BLEServer.h>
+#include <BleEndpoint.h>
 
 #define BLE_DEVICE_NAME "POI"
 
@@ -50,6 +52,11 @@ bfs::Mpu9250 imu(&Wire, bfs::Mpu9250::I2C_ADDR_PRIM);
 #define BLE_CHAR_UUID \
     "309d5cfd-4ad1-45f6-81c8-fd6f512ae200"
 
+// 1. Create the server instance
+BleServer bleServer(BLE_SERVICE_UUID);
+
+// 2. Create our custom typed endpoint (initial value: 1.0f)
+BleEndpoint<float> endpointAlpha(BLE_CHAR_UUID, 1.0f);
 
 // ============================================================
 // FASTLED
@@ -280,8 +287,6 @@ uint32_t getAbsoluteAcceleration()
     return movement;
 }
 
-
-
 // ============================================================
 // UPDATE LEDS
 // ============================================================
@@ -350,12 +355,12 @@ void setup()
 
     Serial.println("Starting BLE...");
 
-    ble_driver = &getBLEDriverInstance();
+    bleServer.begin("AlphaController", {&endpointAlpha});
 
-    ble_driver->begin(
-        BLE_DEVICE_NAME,
-        BLE_SERVICE_UUID,
-        BLE_CHAR_UUID);
+    // ble_driver->begin(
+    //     BLE_DEVICE_NAME,
+    //     BLE_SERVICE_UUID,
+    //     BLE_CHAR_UUID);
 
     // --------------------------------------------------------
     // GPIO
@@ -488,7 +493,7 @@ void loop()
 
         if (millis() - lastMotionTime >= NO_MOTION_TIMEOUT_MS)
         {
-            enterDeepSleep();
+            // enterDeepSleep();
         }
     }
 
@@ -496,58 +501,15 @@ void loop()
     // BLE
     // ========================================================
 
-    if (
-        ble_driver != nullptr &&
-        ble_driver->connected())
+    bleServer.update();
+
+    // 5. Read the value directly and safely
+    static float lastAlpha = -1.0f;
+    float currentAlpha = endpointAlpha.getValue();
+
+    if (currentAlpha != lastAlpha)
     {
-        // ----------------------------------------------------
-        // MPU9250 temperature
-        //
-        // Send as normal float string, no computation done on value
-        // ----------------------------------------------------
-
-        float mpuTemp = imu.die_temp_c();
-
-        char buff[16];
-
-        snprintf(
-            buff,
-            sizeof(buff),
-            "%.2f",
-            mpuTemp);
-
-        ble_driver->sendDataPacket(
-            &buff,
-            strlen(buff) + 1);
-
-        // ----------------------------------------------------
-        // Receive new filter setting
-        // Expected values are: [0, 1000]
-        // ----------------------------------------------------
-
-        if (ble_driver->available())
-        {
-            String msg = ble_driver->get_received();
-
-            uint32_t alpha = msg.toInt();
-
-            // ------------------------------------------------
-            // Limit to sensible range
-            // ------------------------------------------------
-
-            if (alpha < 0)
-            {
-                alpha = 0;
-            }
-            else if (alpha > 1000)
-            {
-                alpha = 1000;
-            }
-
-            // TODO implement BLE Change of lowpass alpha
-
-            // Serial.print("New FILTER_ALPHA: ");
-            // Serial.println(FILTER_ALPHA);
-        }
+        lastAlpha = currentAlpha;
+        Serial.printf("[MAIN] Alpha updated to: %.2f\n", currentAlpha);
     }
 }
