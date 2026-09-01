@@ -26,7 +26,7 @@
 // FastLED
 #define NUM_LEDS 15
 #define DATA_PIN 2
-#define LED_BRIGHTNESS 50
+#define LED_BRIGHTNESS 20
 
 // Status LED
 #define STATUS_LED_PIN 8
@@ -40,6 +40,7 @@ bfs::Mpu9250 imu(&Wire, bfs::Mpu9250::I2C_ADDR_PRIM);
 // ============================================================
 // BLE
 // ============================================================
+#include <NimBLEDevice.h>
 
 #define BLE_DEVICE_NAME "POI"
 
@@ -49,7 +50,6 @@ bfs::Mpu9250 imu(&Wire, bfs::Mpu9250::I2C_ADDR_PRIM);
 #define BLE_CHAR_UUID \
     "309d5cfd-4ad1-45f6-81c8-fd6f512ae200"
 
-BLEInterface *ble_driver = nullptr;
 
 // ============================================================
 // FASTLED
@@ -280,68 +280,20 @@ uint32_t getAbsoluteAcceleration()
     return movement;
 }
 
-// ============================================================
-// ACCELERATION -> NORMALIZED_ACCL
-// ============================================================
-// normalized is 0-1000
 
-uint32_t accelerationNormalizer(uint32_t acceleration)
-{
-
-    if (acceleration < DEADZONE_MSS)
-    {
-        acceleration = 0;
-    }
-
-    // --------------------------------------------------------
-    // Update maximum
-    // --------------------------------------------------------
-
-    if (acceleration > MAX_ACCL_MSS)
-    {
-        MAX_ACCL_MSS = acceleration;
-    }
-    else if (MAX_ACCL_MSS > 18000)
-    {
-        // only decrease if we are above baseline
-        MAX_ACCL_MSS -= 10;
-    }
-
-    // --------------------------------------------------------
-    // Normalize:
-    //
-    // 0 -> 1000
-    //
-    // 0 = minimum
-    // 1000 = maximum
-    // --------------------------------------------------------
-
-    uint32_t normalized =
-        ((uint64_t)acceleration * NORMALIZED_SCALE) / MAX_ACCL_MSS;
-
-    if (normalized > 1000)
-    {
-        normalized = 1000;
-    }
-
-    return normalized;
-}
 
 // ============================================================
 // UPDATE LEDS
 // ============================================================
 
 void updateLEDs(
-    uint32_t acceleration)
+    HSV hsv)
 {
-    uint32_t normalized_accl = accelerationNormalizer(acceleration);
-
-    static HSV hsv = HSV();
 
     CRGB color = CHSV(
-        hsv.hueMapper(160, 360, normalized_accl),
-        255,
-        255);
+        hsv.hue,
+        hsv.saturation,
+        hsv.brightness);
 
     for (uint8_t i = 0; i < NUM_LEDS; i++)
     {
@@ -350,6 +302,12 @@ void updateLEDs(
 
     FastLED.show();
 }
+
+// ============================================================
+// POI_CONTROLLER
+// ============================================================
+#include <PoiController.h>
+PoiController poi_controller = PoiController(18000, 1000, 80, 160, 360, true);
 
 // ============================================================
 // SETUP
@@ -362,8 +320,6 @@ void setup()
     // --------------------------------------------------------
 
     Serial.begin(115200);
-
-    delay(100);
 
     Serial.println();
     Serial.println("==============================");
@@ -477,6 +433,19 @@ void setup()
 
 void loop()
 {
+
+    /**
+     * 1. read sensors
+     * 2. normalize
+     * 3. filter (alpha)
+     * 4. color-mapping ( min, max)
+     * 5. return colors to this
+     *
+     * BLE
+     * 1. change alpha
+     * 2. change min, max
+     */
+
     digitalWrite(STATUS_LED_PIN, LOW);
 
     // --------------------------------------------------------
@@ -486,11 +455,6 @@ void loop()
     if (imu.Read())
     {
         uint32_t acceleration = getAbsoluteAcceleration();
-
-        static LowPass lPass = LowPass(80);
-        int32_t signed_filtered =  lPass.filter(acceleration);
-        uint32_t filtered = (signed_filtered < 0 ? 0 : signed_filtered);
-         
 
         // ----------------------------------------------------
         // LED update
@@ -503,7 +467,9 @@ void loop()
         {
             lastLedUpdate = now;
 
-            updateLEDs(filtered);
+            HSV hsv = poi_controller.tick(acceleration);
+
+            updateLEDs(hsv);
         }
 
         // ----------------------------------------------------
@@ -584,38 +550,4 @@ void loop()
             // Serial.println(FILTER_ALPHA);
         }
     }
-
-    // ========================================================
-    // ESP32-C3 TEMPERATURE
-    // ========================================================
-
-    static uint32_t lastTempPrint = 0;
-
-    if (
-        millis() - lastTempPrint >= 2000)
-    {
-        lastTempPrint = millis();
-
-        float espTemp = temperatureRead();
-
-        Serial.print("ESP32-C3 temp: ");
-        Serial.print(espTemp, 2);
-        Serial.println("°C");
-
-        Serial.print("MPU9250 temp: ");
-        Serial.print(imu.die_temp_c(), 2);
-        Serial.println("°C");
-
-        Serial.print("absAccl: ");
-        Serial.print(getAbsoluteAcceleration());
-
-        Serial.print("\tmax: ");
-        Serial.println(MAX_ACCL_MSS);
-    }
-
-    // --------------------------------------------------------
-    // Small delay
-    // --------------------------------------------------------
-
-    delay(20);
 }

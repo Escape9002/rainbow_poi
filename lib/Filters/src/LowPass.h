@@ -1,3 +1,4 @@
+#pragma once
 #include <cstdint>
 class LowPass
 {
@@ -36,5 +37,9 @@ public:
         previous += correction;
 
         return previous;
+    }
+
+    void setAlpha(uint32_t alpha){
+        this->alpha = alpha;
     }
 };
