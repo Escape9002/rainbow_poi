@@ -22,7 +22,7 @@ void BleServer::begin(const char* deviceName, std::initializer_list<BleEndpointB
 
     // 2. Initialize NimBLE stack
     NimBLEDevice::init(deviceName);
-    NimBLEDevice::setPower(ESP_PWR_LVL_N0);
+    NimBLEDevice::setPower(9);
 
     NimBLEServer* pServer = NimBLEDevice::createServer();
     pServer->setCallbacks(new ServerCallbacks());
@@ -36,13 +36,14 @@ void BleServer::begin(const char* deviceName, std::initializer_list<BleEndpointB
     }
 
     // 4. Start service and advertising
-    pService->start();
+    pServer->start();
 
     NimBLEAdvertising* pAdv = NimBLEDevice::getAdvertising();
     pAdv->addServiceUUID(_serviceUUID);
+    pAdv->setName(deviceName); 
     pAdv->enableScanResponse(true);
-    pAdv->setMinInterval(160);
-    pAdv->setMaxInterval(320);
+    pAdv->setMinInterval(0);
+    pAdv->setMaxInterval(0);
     pAdv->start();
 }
 

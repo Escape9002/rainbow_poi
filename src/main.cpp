@@ -361,7 +361,7 @@ void setup()
 
     Serial.println("Starting BLE...");
 
-    bleServer.begin("AlphaController", {&endpointAlpha, &endpointBattery});
+    bleServer.begin(BLE_DEVICE_NAME, {&endpointAlpha, &endpointBattery});
 
     // ble_driver->begin(
     //     BLE_DEVICE_NAME,
