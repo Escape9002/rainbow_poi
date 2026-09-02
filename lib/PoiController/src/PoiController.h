@@ -14,9 +14,10 @@ private:
 
     uint32_t min, max;
 
-    LowPass lPass;
+    LowPassFilter<uint32_t> lPass;
     HSV hsv;
 
+    // TODO potential overroll here, since signed INT used
     int32_t normalize(int32_t value)
     {
         int32_t norm = (value * NORM_SCALE) / value_max_dyn;
@@ -33,20 +34,33 @@ private:
         return norm;
     }
 
-    int32_t filter(int32_t value)
+    uint32_t filter(const uint32_t value)
     {
         return lPass.filter(value);
     }
 
-    HSV map_color(int32_t value)
+    HSV map_color(const uint32_t value)
     {
+
+        uint8_t hue = static_cast<uint8_t>((static_cast<uint32_t>(hsv.hueMapper(min, max, value)) * 255) / 360);
+
         return HSV{
-            hsv.hueMapper(min, max, value),
+            hue,
             255,
             255};
     }
 
 public:
+/**
+ * @brief Construct a new Poi Controller object
+ * 
+ * @param value_max maximum accleration 
+ * @param norm_scale scale on which to operate concerning float to fix-point
+ * @param alpha lowPass alpha
+ * @param min hueMin
+ * @param max hueMax
+ * @param dynamic_max enable dynamic maximum acceleration
+ */
     PoiController(uint32_t value_max,
                   uint32_t norm_scale,
                   uint32_t alpha,
@@ -69,13 +83,13 @@ public:
 
         if (dynamic_max)
         {
-            if (value > VALUE_MAX)
+            if (value > VALUE_MAX && value > value_max_dyn)
             {
                 value_max_dyn = value;
             }
             else if (value_max_dyn > VALUE_MAX)
             {
-                value_max_dyn -= (NORM_SCALE / VALUE_MAX);
+                value_max_dyn -= 10;
             }
         }
 
@@ -101,11 +115,13 @@ public:
         this->max = max;
     }
 
-    uint32_t getColorMin(){
+    uint32_t getColorMin()
+    {
         return this->min;
     }
 
-    uint32_t getColorMax(){
+    uint32_t getColorMax()
+    {
         return this->max;
     }
 

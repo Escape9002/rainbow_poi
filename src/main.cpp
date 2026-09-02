@@ -319,7 +319,7 @@ void updateLEDs(
 // POI_CONTROLLER
 // ============================================================
 #include <PoiController.h>
-PoiController poi_controller = PoiController(18000, 1000, 80, 160, 359, true);
+PoiController poi_controller = PoiController(18000, 1000, 80, 240, 359, true);
 
 // ============================================================
 // SETUP

@@ -23,21 +23,24 @@ struct HSV
             value = 1000;
         }
 
-        int32_t signed_min = (int32_t) min;
-        int32_t signed_max = (int32_t) max;
-        int32_t signed_value = (int32_t) value;
+        int32_t signed_min = (int32_t)min;
+        int32_t signed_max = (int32_t)max;
+        int32_t signed_value = (int32_t)value;
 
-        
-        int32_t mapped = signed_min - ((signed_min-signed_max)*signed_value) / 1000;
+        int32_t mapped = signed_min - ((signed_min - signed_max) * signed_value) / 1000;
         // explizit wrap around, since hue is defined on a color-wheel
-        mapped %= 360;
 
         // ensure mapped is positive value
-        if(mapped < 0 ){
+        if (mapped < 0)
+        {
             mapped += 360;
         }
+        else if (mapped > 360)
+        {
+            mapped %= 360;
+        }
 
-        hue = (uint16_t) mapped;
+        hue = (uint16_t)mapped;
         return hue;
     }
 
