@@ -1,15 +1,18 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include <math.h>
-
+#include <vector>
 #include "mpu9250.h"
 #include "esp_sleep.h"
 #include <driver/gpio.h>
 
-#include "BLE-HAL.h"
-#include <BLEInterface.h>
+// #include "BLE-HAL.h"
+// #include <BLEInterface.h>
 
 #include <FastLED.h>
+
+#include <HSV.h>
+#include <LowPass.h>
 
 // ============================================================
 // HARDWARE CONFIGURATION
@@ -23,7 +26,7 @@
 // FastLED
 #define NUM_LEDS 15
 #define DATA_PIN 2
-#define LED_BRIGHTNESS 50
+#define LED_BRIGHTNESS 100
 
 // Status LED
 #define STATUS_LED_PIN 8
@@ -37,6 +40,10 @@ bfs::Mpu9250 imu(&Wire, bfs::Mpu9250::I2C_ADDR_PRIM);
 // ============================================================
 // BLE
 // ============================================================
+#define BLE 0
+#if BLE
+#include <BLEServer.h>
+#include <BleEndpoint.h>
 
 #define BLE_DEVICE_NAME "POI"
 
@@ -45,9 +52,19 @@ bfs::Mpu9250 imu(&Wire, bfs::Mpu9250::I2C_ADDR_PRIM);
 
 #define BLE_CHAR_UUID \
     "309d5cfd-4ad1-45f6-81c8-fd6f512ae200"
+#define BATTERY_CHAR_UUID "2A19" // Standard BLE Battery Level UUID
 
-BLEInterface *ble_driver = nullptr;
+// 1. Create the server instance
+BleServer bleServer(BLE_SERVICE_UUID);
+// 2. Create our custom typed endpoint (initial value: 80)
+BleEndpoint<uint32_t> endpointAlpha(BLE_CHAR_UUID, 80, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
 
+// Typ: uint8_t | Startwert: 100% | Rechte: Lesen & Benachrichtigen (Kein Schreiben vom Handy!)
+BleEndpoint<uint8_t> endpointBattery(
+    BATTERY_CHAR_UUID,
+    100,
+    NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
+#endif
 // ============================================================
 // FASTLED
 // ============================================================
@@ -88,23 +105,6 @@ CRGB leds[NUM_LEDS];
 #define MINIMUM_ACCL_MSS DEADZONE_MSS
 
 // ============================================================
-// FILTER
-// ============================================================
-//
-// Alpha:
-//
-//     0.08 = 80 / 1000
-//
-// Lower = smoother
-// Higher = faster
-//
-// ============================================================
-
-#define FILTER_SCALE 1000UL
-
-RTC_DATA_ATTR uint32_t FILTER_ALPHA = 80;
-
-// ============================================================
 // HSV CONVERSION RANGE
 // ============================================================
 #define NORMALIZED_SCALE 1000UL
@@ -126,12 +126,6 @@ uint32_t MAX_ACCL_MSS = 18000;
 #define NO_MOTION_TIMEOUT_MS 10000UL
 
 uint32_t lastMotionTime = 0;
-
-// ============================================================
-// FILTER STATE
-// ============================================================
-
-uint32_t filteredAcceleration = 0;
 
 // ============================================================
 // LED UPDATE
@@ -301,140 +295,17 @@ uint32_t getAbsoluteAcceleration()
 }
 
 // ============================================================
-// LOW PASS FILTER
-// ============================================================
-//
-//
-// filtered += alpha * (input - filtered)
-//
-// alpha is represented as:
-//
-//     80 / 1000 = 0.08
-//
-// ============================================================
-
-uint32_t filterAcceleration(
-    uint32_t acceleration)
-{
-    int32_t error =
-        (int32_t)acceleration -
-        (int32_t)filteredAcceleration;
-
-    // error * 0.08 = error * 80/1000
-    // also known as: error * alpha / FilterScale
-    int32_t correction =
-        ((int32_t)FILTER_ALPHA * error) / (int32_t)FILTER_SCALE;
-
-    int32_t result =
-        (int32_t)filteredAcceleration +
-        correction;
-
-    if (result < 0)
-    {
-        result = 0;
-    }
-
-    filteredAcceleration =
-        (uint32_t)result;
-
-    return filteredAcceleration;
-}
-
-// ============================================================
-// ACCELERATION -> COLOR
-// ============================================================
-//
-// Blue  -> low acceleration
-// Purple -> medium acceleration
-// Red   -> high acceleration
-//
-// FastLED hue:
-//     160 = blue
-//     192 = purple
-//     255 = red
-//
-// ============================================================
-
-CRGB accelerationToColor(
-    uint32_t acceleration)
-{
-    // --------------------------------------------------------
-    // Deadzone
-    // --------------------------------------------------------
-
-    if (acceleration < DEADZONE_MSS)
-    {
-        acceleration = 0;
-    }
-
-    // --------------------------------------------------------
-    // Update maximum
-    // --------------------------------------------------------
-
-    if (acceleration > MAX_ACCL_MSS)
-    {
-        MAX_ACCL_MSS = acceleration;
-    }
-    else if (MAX_ACCL_MSS > 18000)
-    {
-        // only decrease if we are above baseline
-        MAX_ACCL_MSS -= 10;
-    }
-
-    // --------------------------------------------------------
-    // Avoid division by zero
-    // --------------------------------------------------------
-
-    if (MAX_ACCL_MSS == 0)
-    {
-        return CRGB::Blue;
-    }
-
-    // --------------------------------------------------------
-    // Normalize:
-    //
-    // 0 -> 1000
-    //
-    // 0 = minimum
-    // 1000 = maximum
-    // --------------------------------------------------------
-
-    uint32_t normalized =
-        ((uint64_t)acceleration * NORMALIZED_SCALE) / MAX_ACCL_MSS;
-
-    if (normalized > 1000)
-    {
-        normalized = 1000;
-    }
-
-    // --------------------------------------------------------
-    // Hue:
-    //
-    // 160 = blue
-    // 255 = red
-    //
-    // 160 + 95 = 255
-    // --------------------------------------------------------
-
-    uint8_t hue =
-        160 - ((normalized * 160UL) / NORMALIZED_SCALE);
-
-    return CHSV(
-        hue,
-        255,
-        255);
-}
-
-// ============================================================
 // UPDATE LEDS
 // ============================================================
 
 void updateLEDs(
-    uint32_t acceleration)
+    HSV hsv)
 {
-    CRGB color =
-        accelerationToColor(
-            acceleration);
+
+    CRGB color = CHSV(
+        hsv.hue,
+        hsv.saturation,
+        hsv.brightness);
 
     for (uint8_t i = 0; i < NUM_LEDS; i++)
     {
@@ -443,6 +314,12 @@ void updateLEDs(
 
     FastLED.show();
 }
+
+// ============================================================
+// POI_CONTROLLER
+// ============================================================
+#include <PoiController.h>
+PoiController poi_controller = PoiController(18000, 1000, 80, 160, 359, true);
 
 // ============================================================
 // SETUP
@@ -455,8 +332,6 @@ void setup()
     // --------------------------------------------------------
 
     Serial.begin(115200);
-
-    delay(100);
 
     Serial.println();
     Serial.println("==============================");
@@ -474,31 +349,37 @@ void setup()
 
     if (wakeReason == ESP_SLEEP_WAKEUP_GPIO)
     {
-        Serial.println(
-            "Wakeup: MOTION");
+        Serial.println("Wakeup: MOTION");
     }
     else
     {
-        Serial.println(
-            "Wakeup: POWER ON / RESET");
+        Serial.println("Wakeup: POWER ON / RESET");
     }
 
+    // --------------------------------------------------------
+    // BLE
+    // --------------------------------------------------------
+#if BLE
+    Serial.println("Starting BLE...");
+
+    bleServer.begin(BLE_DEVICE_NAME, {&endpointAlpha, &endpointBattery});
+
+    // ble_driver->begin(
+    //     BLE_DEVICE_NAME,
+    //     BLE_SERVICE_UUID,
+    //     BLE_CHAR_UUID);
+
+#endif
     // --------------------------------------------------------
     // GPIO
     // --------------------------------------------------------
 
-    pinMode(
-        IMU_INT_PIN,
-        INPUT_PULLDOWN);
+    pinMode(IMU_INT_PIN, INPUT_PULLDOWN);
 
-    pinMode(
-        STATUS_LED_PIN,
-        OUTPUT);
+    pinMode(STATUS_LED_PIN, OUTPUT);
 
     // Status LED on
-    digitalWrite(
-        STATUS_LED_PIN,
-        LOW);
+    digitalWrite(STATUS_LED_PIN, LOW);
 
     // --------------------------------------------------------
     // MPU9250
@@ -509,8 +390,7 @@ void setup()
 
     Wire.setClock(400000);
 
-    Serial.println(
-        "Initializing MPU9250...");
+    Serial.println("Initializing MPU9250...");
 
     imu.Config(
         &Wire,
@@ -518,14 +398,12 @@ void setup()
 
     while (!imu.Begin())
     {
-        Serial.println(
-            "MPU9250 initialization FAILED!");
+        Serial.println("MPU9250 initialization FAILED!");
 
         delay(500);
     }
 
-    Serial.println(
-        "MPU9250 initialized.");
+    Serial.println("MPU9250 initialized.");
 
     // --------------------------------------------------------
     // Sample rate
@@ -533,26 +411,9 @@ void setup()
 
     while (!imu.ConfigSrd(19))
     {
-        Serial.println(
-            "Error configuring SRD");
-
+        Serial.println("Error configuring SRD");
         delay(100);
     }
-
-    // --------------------------------------------------------
-    // BLE
-    // --------------------------------------------------------
-
-    Serial.println(
-        "Starting BLE...");
-
-    ble_driver =
-        &getBLEDriverInstance();
-
-    ble_driver->begin(
-        BLE_DEVICE_NAME,
-        BLE_SERVICE_UUID,
-        BLE_CHAR_UUID);
 
     // --------------------------------------------------------
     // FastLED
@@ -574,30 +435,19 @@ void setup()
     FastLED.show();
 
     // --------------------------------------------------------
-    // Reset runtime timers
+    // Init runtime timers
     // --------------------------------------------------------
 
-    lastMotionTime =
-        millis();
+    lastMotionTime = millis();
+    lastLedUpdate = millis();
 
-    lastLedUpdate =
-        millis();
-
-    Serial.println(
-        "Setup complete.");
-
-    Serial.println();
+    Serial.println("Setup complete.");
 }
 
 void loop()
 {
-    // --------------------------------------------------------
-    // Status LED ON
-    // --------------------------------------------------------
 
-    digitalWrite(
-        STATUS_LED_PIN,
-        LOW);
+    digitalWrite(STATUS_LED_PIN, LOW);
 
     // --------------------------------------------------------
     // Read IMU
@@ -605,36 +455,22 @@ void loop()
 
     if (imu.Read())
     {
-        // ----------------------------------------------------
-        // Acceleration
-        // ----------------------------------------------------
-
-        uint32_t acceleration =
-            getAbsoluteAcceleration();
-
-        // ----------------------------------------------------
-        // Filter
-        // ----------------------------------------------------
-
-        uint32_t filtered =
-            filterAcceleration(
-                acceleration);
+        uint32_t acceleration = getAbsoluteAcceleration();
 
         // ----------------------------------------------------
         // LED update
         // ----------------------------------------------------
 
-        uint32_t now =
-            millis();
+        uint32_t now = millis();
 
         if (
             now - lastLedUpdate >= LED_UPDATE_MS)
         {
-            lastLedUpdate =
-                now;
+            lastLedUpdate = now;
 
-            updateLEDs(
-                filtered);
+            HSV hsv = poi_controller.tick(acceleration);
+
+            updateLEDs(hsv);
         }
 
         // ----------------------------------------------------
@@ -642,19 +478,16 @@ void loop()
         // ----------------------------------------------------
 
         if (
-            acceleration >=
-            MINIMUM_ACCL_MSS)
+            acceleration >= MINIMUM_ACCL_MSS)
         {
-            lastMotionTime =
-                millis();
+            lastMotionTime = millis();
         }
 
         // ----------------------------------------------------
         // Deep Sleep
         // ----------------------------------------------------
 
-        if (
-            millis() - lastMotionTime >= NO_MOTION_TIMEOUT_MS)
+        if (millis() - lastMotionTime >= NO_MOTION_TIMEOUT_MS)
         {
             enterDeepSleep();
         }
@@ -663,104 +496,37 @@ void loop()
     // ========================================================
     // BLE
     // ========================================================
-
-    if (
-        ble_driver != nullptr &&
-        ble_driver->connected())
+#if BLE
+    if (!bleServer.update().empty())
     {
-        // ----------------------------------------------------
-        // MPU9250 temperature
-        //
-        // Send as normal float string, no computation done on value
-        // ----------------------------------------------------
+        // TODO changed endpoint receiver
+        // 5. Read the value directly and safely
+        uint32_t newAlpha = endpointAlpha.getValue();
+        Serial.printf("[MAIN] Received Alpha: %d\n", newAlpha);
 
-        float mpuTemp =
-            imu.die_temp_c();
-
-        char buff[16];
-
-        snprintf(
-            buff,
-            sizeof(buff),
-            "%.2f",
-            mpuTemp);
-
-        ble_driver->sendDataPacket(
-            &buff,
-            strlen(buff) + 1);
-
-        // ----------------------------------------------------
-        // Receive new filter setting
-        // Expected values are: [0, 1000]
-        // ----------------------------------------------------
-
-        if (
-            ble_driver->available())
+        if (newAlpha != poi_controller.getAlpha())
         {
-            String msg =
-                ble_driver->get_received();
-
-            uint32_t alpha =
-                msg.toInt();
-
-            // ------------------------------------------------
-            // Limit to sensible range
-            // ------------------------------------------------
-
-            if (alpha < 1)
-            {
-                alpha = 1;
-            }
-            else if (alpha > 1000)
-            {
-                alpha = 1000;
-            }
-
-            FILTER_ALPHA =
-                alpha;
-
-            Serial.print(
-                "New FILTER_ALPHA: ");
-
-            Serial.println(
-                FILTER_ALPHA);
+            poi_controller.setAlpha(newAlpha);
+            Serial.printf("[MAIN] Alpha updated to: %d\n", poi_controller.getAlpha());
         }
     }
 
-    // ========================================================
-    // ESP32-C3 TEMPERATURE
-    // ========================================================
-
-    static uint32_t lastTempPrint = 0;
-
-    if (
-        millis() - lastTempPrint >= 2000)
+    // Simuliere einen sinkenden Batteriestand alle 5 Sekunden
+    static uint32_t lastUpdate = 0;
+    if (millis() - lastUpdate > 5000)
     {
-        lastTempPrint = millis();
+        lastUpdate = millis();
 
-        float espTemp = temperatureRead();
+        uint8_t currentBattery = endpointBattery.getValue();
+        if (currentBattery > 0)
+        {
+            currentBattery -= 1; // Akku verliert 1%
 
-        Serial.print("ESP32-C3 temp: ");
-        Serial.print(espTemp, 2);
-        Serial.println("°C");
+            // Pusht den neuen Wert per Notify direkt auf das Handy!
+            endpointBattery.setValue(currentBattery);
 
-        Serial.print("MPU9250 temp: ");
-        Serial.print(imu.die_temp_c(), 2);
-        Serial.println("°C");
-
-        Serial.print("absAccl: ");
-        Serial.print(getAbsoluteAcceleration());
-
-        Serial.print("\tfilter: ");
-        Serial.print(filteredAcceleration);
-
-        Serial.print("\tmax: ");
-        Serial.println(MAX_ACCL_MSS);
+            // Serial.printf("Batterie auf %d%% gesunken und gesendet!\n", currentBattery);
+        }
     }
-
-    // --------------------------------------------------------
-    // Small delay
-    // --------------------------------------------------------
-
-    delay(20);
+#endif
 }

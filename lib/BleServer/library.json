@@ -1,0 +1,15 @@
+{
+  "$schema": "https://raw.githubusercontent.com/platformio/platformio-core/develop/platformio/assets/schema/library.json",
+  "name": "BlEServer",
+  "version": "0.0.1",
+  "description": "Wrapper around NimBLE to make service creation easier",
+  "keywords": "BLE",
+  "authors": {
+    "name": "Antonio Rehwinkel",
+    "email": "antonio.rehwinkel@mailbox.tu-dresden.de",
+    "url": "https://github.com/Escape9002"
+  },
+  "dependencies": {},
+  "frameworks": "",
+  "platforms": "*"
+}
