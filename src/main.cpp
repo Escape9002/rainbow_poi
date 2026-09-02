@@ -26,7 +26,7 @@
 // FastLED
 #define NUM_LEDS 15
 #define DATA_PIN 2
-#define LED_BRIGHTNESS 20
+#define LED_BRIGHTNESS 100
 
 // Status LED
 #define STATUS_LED_PIN 8
@@ -40,7 +40,8 @@ bfs::Mpu9250 imu(&Wire, bfs::Mpu9250::I2C_ADDR_PRIM);
 // ============================================================
 // BLE
 // ============================================================
-
+#define BLE 0
+#if BLE
 #include <BLEServer.h>
 #include <BleEndpoint.h>
 
@@ -63,6 +64,7 @@ BleEndpoint<uint8_t> endpointBattery(
     BATTERY_CHAR_UUID,
     100,
     NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
+#endif
 // ============================================================
 // FASTLED
 // ============================================================
@@ -357,7 +359,7 @@ void setup()
     // --------------------------------------------------------
     // BLE
     // --------------------------------------------------------
-
+#if BLE
     Serial.println("Starting BLE...");
 
     bleServer.begin(BLE_DEVICE_NAME, {&endpointAlpha, &endpointBattery});
@@ -367,6 +369,7 @@ void setup()
     //     BLE_SERVICE_UUID,
     //     BLE_CHAR_UUID);
 
+#endif
     // --------------------------------------------------------
     // GPIO
     // --------------------------------------------------------
@@ -493,7 +496,7 @@ void loop()
     // ========================================================
     // BLE
     // ========================================================
-
+#if BLE
     if (!bleServer.update().empty())
     {
         // TODO changed endpoint receiver
@@ -525,4 +528,5 @@ void loop()
             // Serial.printf("Batterie auf %d%% gesunken und gesendet!\n", currentBattery);
         }
     }
+#endif
 }
