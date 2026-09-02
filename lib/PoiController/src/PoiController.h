@@ -51,6 +51,16 @@ private:
     }
 
 public:
+/**
+ * @brief Construct a new Poi Controller object
+ * 
+ * @param value_max maximum accleration 
+ * @param norm_scale scale on which to operate concerning float to fix-point
+ * @param alpha lowPass alpha
+ * @param min hueMin
+ * @param max hueMax
+ * @param dynamic_max enable dynamic maximum acceleration
+ */
     PoiController(uint32_t value_max,
                   uint32_t norm_scale,
                   uint32_t alpha,

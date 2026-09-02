@@ -29,12 +29,15 @@ struct HSV
 
         int32_t mapped = signed_min - ((signed_min - signed_max) * signed_value) / 1000;
         // explizit wrap around, since hue is defined on a color-wheel
-        mapped %= 360;
 
         // ensure mapped is positive value
         if (mapped < 0)
         {
             mapped += 360;
+        }
+        else if (mapped > 360)
+        {
+            mapped %= 360;
         }
 
         hue = (uint16_t)mapped;
@@ -84,5 +87,4 @@ struct HSV
         brightness = (uint8_t)exact_brightness;
         return brightness;
     }
-
 };
