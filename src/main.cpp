@@ -55,16 +55,14 @@ bfs::Mpu9250 imu(&Wire, bfs::Mpu9250::I2C_ADDR_PRIM);
 
 // 1. Create the server instance
 BleServer bleServer(BLE_SERVICE_UUID);
-
-// 2. Create our custom typed endpoint (initial value: 1.0f)
+// 2. Create our custom typed endpoint (initial value: 80)
 BleEndpoint<uint32_t> endpointAlpha(BLE_CHAR_UUID, 80, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
 
 // Typ: uint8_t | Startwert: 100% | Rechte: Lesen & Benachrichtigen (Kein Schreiben vom Handy!)
 BleEndpoint<uint8_t> endpointBattery(
-    BATTERY_CHAR_UUID, 
-    100, 
-    NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY
-);
+    BATTERY_CHAR_UUID,
+    100,
+    NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
 // ============================================================
 // FASTLED
 // ============================================================
@@ -319,7 +317,7 @@ void updateLEDs(
 // POI_CONTROLLER
 // ============================================================
 #include <PoiController.h>
-PoiController poi_controller = PoiController(18000, 1000, 80, 160, 360, true);
+PoiController poi_controller = PoiController(18000, 1000, 80, 160, 359, true);
 
 // ============================================================
 // SETUP
@@ -446,18 +444,6 @@ void setup()
 void loop()
 {
 
-    /**
-     * 1. read sensors
-     * 2. normalize
-     * 3. filter (alpha)
-     * 4. color-mapping ( min, max)
-     * 5. return colors to this
-     *
-     * BLE
-     * 1. change alpha
-     * 2. change min, max
-     */
-
     digitalWrite(STATUS_LED_PIN, LOW);
 
     // --------------------------------------------------------
@@ -500,7 +486,7 @@ void loop()
 
         if (millis() - lastMotionTime >= NO_MOTION_TIMEOUT_MS)
         {
-            // enterDeepSleep();
+            enterDeepSleep();
         }
     }
 
@@ -508,32 +494,35 @@ void loop()
     // BLE
     // ========================================================
 
-    for (BleEndpointBase* updated : bleServer.update()){
-        // TODO changed endpoint receiver
-    }
-
-    // 5. Read the value directly and safely
-    uint32_t newAlpha = endpointAlpha.getValue();
-
-    if (newAlpha != poi_controller.getAlpha())
+    if (!bleServer.update().empty())
     {
-        poi_controller.setAlpha(newAlpha);
-        Serial.printf("[MAIN] Alpha updated to: %.2f\n", endpointAlpha.getValue());
+        // TODO changed endpoint receiver
+        // 5. Read the value directly and safely
+        uint32_t newAlpha = endpointAlpha.getValue();
+        Serial.printf("[MAIN] Received Alpha: %d\n", newAlpha);
+
+        if (newAlpha != poi_controller.getAlpha())
+        {
+            poi_controller.setAlpha(newAlpha);
+            Serial.printf("[MAIN] Alpha updated to: %d\n", poi_controller.getAlpha());
+        }
     }
 
-      // Simuliere einen sinkenden Batteriestand alle 5 Sekunden
+    // Simuliere einen sinkenden Batteriestand alle 5 Sekunden
     static uint32_t lastUpdate = 0;
-    if (millis() - lastUpdate > 5000) {
+    if (millis() - lastUpdate > 5000)
+    {
         lastUpdate = millis();
-        
+
         uint8_t currentBattery = endpointBattery.getValue();
-        if (currentBattery > 0) {
+        if (currentBattery > 0)
+        {
             currentBattery -= 1; // Akku verliert 1%
-            
+
             // Pusht den neuen Wert per Notify direkt auf das Handy!
-            endpointBattery.setValue(currentBattery); 
-            
-            Serial.printf("Batterie auf %d%% gesunken und gesendet!\n", currentBattery);
+            endpointBattery.setValue(currentBattery);
+
+            // Serial.printf("Batterie auf %d%% gesunken und gesendet!\n", currentBattery);
         }
     }
 }

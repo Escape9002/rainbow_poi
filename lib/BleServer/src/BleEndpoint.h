@@ -11,26 +11,28 @@
 template <typename T>
 T parseBLEString(const std::string &s);
 
+// TODO none of these parsers check parameter lengths, are therefore prone to wrapping issues etc.
+
 // 2. Specialize for int32_t
 template <>
 inline int32_t parseBLEString<int32_t>(const std::string &s)
 {
-    // std::strtol is safe without exceptions. static_cast is C++11 standard.
+
     return static_cast<int32_t>(std::strtol(s.c_str(), nullptr, 10));
 }
 
 template <>
 inline uint32_t parseBLEString<uint32_t>(const std::string &s)
 {
-    // std::strtol is safe without exceptions. static_cast is C++11 standard.
-    return static_cast<uint32_t>(std::strtol(s.c_str(), nullptr, 10));
+
+    return static_cast<uint32_t>(std::strtoul(s.c_str(), nullptr, 10));
 }
 
 template <>
 inline uint8_t parseBLEString<uint8_t>(const std::string &s)
 {
-    // std::strtol is safe without exceptions. static_cast is C++11 standard.
-    return static_cast<uint8_t>(std::strtol(s.c_str(), nullptr, 10));
+
+    return static_cast<uint8_t>(std::strtoul(s.c_str(), nullptr, 10));
 }
 
 // 3. Specialize for float
