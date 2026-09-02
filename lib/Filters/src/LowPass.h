@@ -1,26 +1,29 @@
 #pragma once
 #include <cstdint>
+#include <type_traits>
+#include <limits>
 
 constexpr uint32_t FILTER_SCALE = 1000;
 
 template <typename T>
 struct FilterCalcType
 {
-    using type = std::conditional_t<
-        sizeof(T) <= 1, // int8 is 1 byte
-        int16_t,        // T =< 1 byte -> computation at int16
-        std::conditional_t<
-            sizeof(T) <= 2, // int16 is 2 byte
-            int32_t,        // T =< 2 byte -> computation at int32
-            int64_t         // T > 2 byte -> computation at int64
-            >>;
+    using type = typename std::conditional<
+        sizeof(T) <= 1,
+        int16_t,
+        typename std::conditional<
+            sizeof(T) <= 2,
+            int32_t,
+            int64_t
+        >::type
+    >::type;
 };
 
 template <typename T>
 class LowPassFilter
 {
     static_assert(
-        std::is_integral_v<T>,
+        std::is_integral<T>::value,
         "LowPassFilter requires an integral type");
 
 private:
@@ -33,40 +36,64 @@ private:
         typename FilterCalcType<T>::type;
 
 public:
-    LowPassFilter(const uint32_t alpha)
+    LowPassFilter(uint32_t alpha)
     {
-        if (alpha > FILTER_SCALE)
-        {
-            alpha = FILTER_SCALE;
-        }
-
-        this->alpha = alpha;
+        setAlpha(alpha);
     }
 
-    T filter(const T input)
+    // T filter(T input)
+    // {
+    //     if (!initialized)
+    //     {
+    //         previous = input;
+    //         initialized = true;
+    //         return previous;
+    //     }
+
+    //     CalcType error = static_cast<CalcType>(input) - static_cast<CalcType>(previous);
+    //     CalcType correction = (alpha * error) / FILTER_SCALE;
+
+    //     previous = static_cast<T>(static_cast<CalcType>(previous) + correction);
+
+    //     return previous;
+    // }
+
+    T filter(T input)
     {
         if (!initialized)
         {
             previous = input;
             initialized = true;
-            return previous;
+            return input;
         }
 
-        CalcType error = static_cast<CalcType>(input) - static_cast<CalcType>(previous);
-        CalcType correction = (alpha * error) / FILTER_SCALE;
+        CalcType error =
+            static_cast<CalcType>(input) -
+            static_cast<CalcType>(previous);
 
-        previous = static_cast<T>(static_cast<CalcType>(previous) + correction);
+        CalcType correction =
+            (error * alpha) / FILTER_SCALE;
+
+        previous =
+            static_cast<T>(
+                static_cast<CalcType>(previous) +
+                correction);
 
         return previous;
     }
 
     void setAlpha(uint32_t alpha)
     {
+        if (alpha > FILTER_SCALE)
+        {
+            alpha = FILTER_SCALE;
+        }
         this->alpha = alpha;
     }
 
     uint32_t getAlpha()
     {
+
         return this->alpha;
     }
 };
