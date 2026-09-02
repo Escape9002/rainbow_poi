@@ -14,9 +14,10 @@ private:
 
     uint32_t min, max;
 
-    LowPass lPass;
+    LowPassFilter<uint32_t> lPass;
     HSV hsv;
 
+    //TODO potential overroll here, since signed INT used
     int32_t normalize(int32_t value)
     {
         int32_t norm = (value * NORM_SCALE) / value_max_dyn;
@@ -33,12 +34,12 @@ private:
         return norm;
     }
 
-    int32_t filter(int32_t value)
+    uint32_t filter(const uint32_t value)
     {
         return lPass.filter(value);
     }
 
-    HSV map_color(int32_t value)
+    HSV map_color(const uint32_t value)
     {
         return HSV{
             hsv.hueMapper(min, max, value),
