@@ -17,7 +17,7 @@ private:
     LowPassFilter<uint32_t> lPass;
     HSV hsv;
 
-    //TODO potential overroll here, since signed INT used
+    // TODO potential overroll here, since signed INT used
     int32_t normalize(int32_t value)
     {
         int32_t norm = (value * NORM_SCALE) / value_max_dyn;
@@ -41,8 +41,11 @@ private:
 
     HSV map_color(const uint32_t value)
     {
+
+        uint8_t hue = static_cast<uint8_t>((static_cast<uint32_t>(hsv.hueMapper(min, max, value)) * 255) / 360);
+
         return HSV{
-            hsv.hueMapper(min, max, value),
+            hue,
             255,
             255};
     }
@@ -70,13 +73,13 @@ public:
 
         if (dynamic_max)
         {
-            if (value > VALUE_MAX)
+            if (value > VALUE_MAX && value > value_max_dyn)
             {
                 value_max_dyn = value;
             }
             else if (value_max_dyn > VALUE_MAX)
             {
-                value_max_dyn -= (NORM_SCALE / VALUE_MAX);
+                value_max_dyn -= 10;
             }
         }
 
@@ -102,11 +105,13 @@ public:
         this->max = max;
     }
 
-    uint32_t getColorMin(){
+    uint32_t getColorMin()
+    {
         return this->min;
     }
 
-    uint32_t getColorMax(){
+    uint32_t getColorMax()
+    {
         return this->max;
     }
 
