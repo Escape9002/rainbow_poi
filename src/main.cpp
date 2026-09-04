@@ -31,6 +31,11 @@
 // Status LED
 #define STATUS_LED_PIN 8
 
+#define VOLTAGE_DIVIDER_FACTOR 2
+#define BATTERY_MEASUREMENT_PIN 3
+const uint16_t CHARGE_CUTOFF_V = 4200; // mV
+const uint16_t DISCHARGE_CUTOFF_V = 3000; // mV
+
 // ============================================================
 // MPU9250
 // ============================================================
@@ -40,7 +45,7 @@ bfs::Mpu9250 imu(&Wire, bfs::Mpu9250::I2C_ADDR_PRIM);
 // ============================================================
 // BLE
 // ============================================================
-#define BLE 0
+#define BLE 1
 #if BLE
 #include <BLEServer.h>
 #include <BleEndpoint.h>
@@ -364,6 +369,9 @@ void setup()
 
     bleServer.begin(BLE_DEVICE_NAME, {&endpointAlpha, &endpointBattery});
 
+    // digital capacitor :3
+    delay(250);
+
     // ble_driver->begin(
     //     BLE_DEVICE_NAME,
     //     BLE_SERVICE_UUID,
@@ -377,6 +385,7 @@ void setup()
     pinMode(IMU_INT_PIN, INPUT_PULLDOWN);
 
     pinMode(STATUS_LED_PIN, OUTPUT);
+    pinMode(A3, INPUT);
 
     // Status LED on
     digitalWrite(STATUS_LED_PIN, LOW);
@@ -496,6 +505,7 @@ void loop()
     // ========================================================
     // BLE
     // ========================================================
+
 #if BLE
     if (!bleServer.update().empty())
     {
@@ -511,22 +521,28 @@ void loop()
         }
     }
 
-    // Simuliere einen sinkenden Batteriestand alle 5 Sekunden
+    
     static uint32_t lastUpdate = 0;
     if (millis() - lastUpdate > 5000)
     {
         lastUpdate = millis();
 
-        uint8_t currentBattery = endpointBattery.getValue();
-        if (currentBattery > 0)
-        {
-            currentBattery -= 1; // Akku verliert 1%
+        uint16_t volt = analogReadMilliVolts(BATTERY_MEASUREMENT_PIN) * VOLTAGE_DIVIDER_FACTOR;
 
-            // Pusht den neuen Wert per Notify direkt auf das Handy!
-            endpointBattery.setValue(currentBattery);
+        // 1. Clamp the voltage to our known bounds to prevent math errors
+        if (volt > CHARGE_CUTOFF_V) volt = CHARGE_CUTOFF_V;
+        if (volt < DISCHARGE_CUTOFF_V) volt = DISCHARGE_CUTOFF_V;
 
-            // Serial.printf("Batterie auf %d%% gesunken und gesendet!\n", currentBattery);
-        }
+        uint16_t chargePercentage = ((volt - DISCHARGE_CUTOFF_V)*100) / (CHARGE_CUTOFF_V - DISCHARGE_CUTOFF_V);
+        
+        Serial.print(volt);
+        Serial.print("\t");
+        Serial.println(chargePercentage);
+
+        // Pusht den neuen Wert per Notify direkt auf das Handy!
+        endpointBattery.setValue(chargePercentage);
+
+        
     }
 #endif
 }
