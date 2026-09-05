@@ -35,7 +35,7 @@ private:
     int32_t lastAccl = 0;
     static const uint32_t JITTER_THRESHOLD = 200;
     uint32_t idle_time_ms = 0;
-    static const uint32_t NO_MOTION_TIMEOUT_MS = 5000; // ms
+    static const uint32_t NO_MOTION_TIMEOUT_MS = 10*1000; // ms
 
     // --------------------------------------------------------
     // OBJECT VARS and PARAMS
