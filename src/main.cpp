@@ -6,13 +6,11 @@
 #include "esp_sleep.h"
 #include <driver/gpio.h>
 
-// #include "BLE-HAL.h"
-// #include <BLEInterface.h>
-
 #include <FastLED.h>
 
 #include <HSV.h>
 #include <LowPass.h>
+#include <ESP32C3SuperMini.h>
 
 // ============================================================
 // HARDWARE CONFIGURATION
@@ -36,6 +34,7 @@
 const uint16_t CHARGE_CUTOFF_V = 4200;    // mV
 const uint16_t DISCHARGE_CUTOFF_V = 3230; // mV
 uint16_t chargePercentage = 100;
+
 // ============================================================
 // MPU9250
 // ============================================================
@@ -134,14 +133,6 @@ CRGB leds[NUM_LEDS];
 uint32_t MAX_ACCL_MSS = 18000;
 
 // ============================================================
-// SLEEP CONFIGURATION
-// ============================================================
-
-#define NO_MOTION_TIMEOUT_MS 10000UL
-
-uint32_t lastMotionTime = 0;
-
-// ============================================================
 // LED UPDATE
 // ============================================================
 
@@ -150,102 +141,6 @@ uint32_t lastMotionTime = 0;
 uint32_t lastLedUpdate = 0;
 
 FastLEDEffects realEffectEngine;
-
-// ============================================================
-// CLEAR MPU9250 INTERRUPT
-// ============================================================
-// Function to acknowledge/clear the MPU9250 interrupt hardware pin
-void clearimuInterrupt()
-{
-    Wire.beginTransmission(bfs::Mpu9250::I2C_ADDR_PRIM);
-    Wire.write(0x3A); // Read INT_STATUS register
-    Wire.endTransmission();
-    Wire.requestFrom(bfs::Mpu9250::I2C_ADDR_PRIM, 1);
-    while (Wire.available())
-        Wire.read();
-}
-
-// ============================================================
-// ENTER DEEP SLEEP
-// ============================================================
-
-void enterDeepSleep()
-{
-    Serial.println();
-    Serial.println("==============================");
-    Serial.println("Preparing for Deep Sleep");
-    Serial.println("==============================");
-
-    // --------------------------------------------------------
-    // Turn LEDs off
-    // --------------------------------------------------------
-
-    FastLED.clear();
-    FastLED.show();
-
-    // --------------------------------------------------------
-    // Enable MPU9250 Wake-on-Motion
-    // --------------------------------------------------------
-    Serial.println("Enabling MPU9250 WOM...");
-
-    // Switch imu to Low Power WOM Mode
-    // threshold in mg, also, theres a max-value, as per code:
-    // > /* Check threshold in limits, 4 - 1020 mg */
-    // WOM Rate is more or less sensitivity!
-    imu.EnableWom(1020, bfs::Mpu9250::WOM_RATE_15_63HZ);
-
-    // --------------------------------------------------------
-    // Configure MPU9250 interrupt
-    //
-    // INT_PIN_CFG = 0x37
-    // 0x30 = latch interrupt + clear on any read
-    // --------------------------------------------------------
-
-    // Latch interrupt and clear on any read
-    Wire.beginTransmission(bfs::Mpu9250::I2C_ADDR_PRIM);
-    Wire.write(0x37);
-    Wire.write(0x30);
-    Wire.endTransmission();
-
-    // --------------------------------------------------------
-    // Clear any previous interrupt
-    // --------------------------------------------------------
-
-    clearimuInterrupt();
-    delay(50);
-
-    // --------------------------------------------------------
-    // Configure ESP32-C3 GPIO wakeup
-    //
-    // Wake when IMU_INT_PIN goes HIGH.
-    // --------------------------------------------------------
-    esp_err_t err =
-        esp_deep_sleep_enable_gpio_wakeup(
-            1ULL << IMU_INT_PIN,
-            ESP_GPIO_WAKEUP_GPIO_HIGH);
-
-    if (err != ESP_OK)
-    {
-        Serial.print("Failed to configure GPIO wakeup: ");
-        Serial.println(err);
-        return;
-    }
-
-    // --------------------------------------------------------
-    // Sleep
-    // --------------------------------------------------------
-
-    Serial.println("GPIO wakeup configured.");
-
-    Serial.print("Waiting for motion on GPIO ");
-    Serial.println(IMU_INT_PIN);
-
-    Serial.println("Entering Deep Sleep...");
-
-    Serial.flush();
-
-    esp_deep_sleep_start();
-}
 
 // ============================================================
 // GET ACCELERATION MAGNITUDE
@@ -335,7 +230,16 @@ void updateLEDs(
 // POI_CONTROLLER
 // ============================================================
 #include <PoiController.h>
-PoiController poi_controller = PoiController(MAX_ACCL_MSS, FP_SCALE, 80, 240, 359, true, &realEffectEngine);
+ESP32C3SuperMini esp32_c3_superMini = ESP32C3SuperMini(&imu, IMU_INT_PIN);
+PoiController poi_controller = PoiController(
+    MAX_ACCL_MSS,
+    FP_SCALE,
+    80,
+    240,
+    359,
+    true,
+    &realEffectEngine,
+    &esp32_c3_superMini);
 
 // ============================================================
 // SETUP
@@ -513,11 +417,12 @@ void setup()
     // Init runtime timers
     // --------------------------------------------------------
 
-    lastMotionTime = millis();
     lastLedUpdate = millis();
 
     Serial.println("Setup complete.");
 }
+
+static int32_t last_accl_asdawd = 0;
 
 void loop()
 {
@@ -531,6 +436,11 @@ void loop()
     if (imu.Read())
     {
         uint32_t acceleration = getAbsoluteAcceleration();
+        int32_t diff = acceleration - last_accl_asdawd;
+
+        last_accl_asdawd = acceleration;
+
+        Serial.println(std::abs(diff));
 
         // ----------------------------------------------------
         // LED update
@@ -547,25 +457,6 @@ void loop()
             HSV hsv = poi_controller.tick(acceleration, dt_ms);
 
             updateLEDs(hsv);
-        }
-
-        // ----------------------------------------------------
-        // Motion detection
-        // ----------------------------------------------------
-
-        if (
-            acceleration >= MINIMUM_ACCL_MSS)
-        {
-            lastMotionTime = millis();
-        }
-
-        // ----------------------------------------------------
-        // Deep Sleep
-        // ----------------------------------------------------
-
-        if (millis() - lastMotionTime >= NO_MOTION_TIMEOUT_MS)
-        {
-            // enterDeepSleep();
         }
     }
 

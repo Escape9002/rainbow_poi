@@ -90,7 +90,7 @@ POI_MODE PoiController::getMode()
     return this->current_mode;
 }
 
-const char* PoiController::getModeStr()
+const char *PoiController::getModeStr()
 {
     switch (this->getMode())
     {
@@ -111,6 +111,16 @@ const char* PoiController::getModeStr()
     }
 }
 
-void PoiController::setMode(POI_MODE mode) {
+void PoiController::setMode(POI_MODE mode)
+{
     this->current_mode = mode;
+}
+
+bool PoiController::no_movement(int32_t accl)
+{
+    int32_t diff = accl - lastAccl;
+
+    lastAccl = accl;
+
+    return std::abs(diff) < JITTER_THRESHOLD;
 }
