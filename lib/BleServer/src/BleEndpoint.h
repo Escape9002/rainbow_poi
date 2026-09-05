@@ -22,6 +22,13 @@ inline int32_t parseBLEString<int32_t>(const std::string &s)
 }
 
 template <>
+inline uint16_t parseBLEString<uint16_t>(const std::string &s)
+{
+
+    return static_cast<uint16_t>(std::strtol(s.c_str(), nullptr, 10));
+}
+
+template <>
 inline uint32_t parseBLEString<uint32_t>(const std::string &s)
 {
 

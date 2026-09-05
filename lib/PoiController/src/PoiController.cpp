@@ -65,8 +65,8 @@ uint32_t PoiController::getAlpha()
 
 void PoiController::setColorRange(uint32_t hueMin, uint32_t hueMax)
 {
-    this->hueMin = hueMin;
-    this->hueMax = hueMax;
+    this->hueMin = hueMin%360;
+    this->hueMax = hueMax%360;
 }
 
 uint32_t PoiController::getHueMin()
