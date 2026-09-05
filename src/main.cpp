@@ -31,6 +31,11 @@
 // Status LED
 #define STATUS_LED_PIN 8
 
+#define VOLTAGE_DIVIDER_FACTOR 2
+#define BATTERY_MEASUREMENT_PIN 3
+const uint16_t CHARGE_CUTOFF_V = 4200;    // mV
+const uint16_t DISCHARGE_CUTOFF_V = 3000; // mV
+
 // ============================================================
 // MPU9250
 // ============================================================
@@ -40,10 +45,11 @@ bfs::Mpu9250 imu(&Wire, bfs::Mpu9250::I2C_ADDR_PRIM);
 // ============================================================
 // BLE
 // ============================================================
-#define BLE 0
+#define BLE 1
 #if BLE
 #include <BLEServer.h>
 #include <BleEndpoint.h>
+#include "FastLEDEffects.h"
 
 #define BLE_DEVICE_NAME "POI"
 
@@ -105,11 +111,6 @@ CRGB leds[NUM_LEDS];
 #define MINIMUM_ACCL_MSS DEADZONE_MSS
 
 // ============================================================
-// HSV CONVERSION RANGE
-// ============================================================
-#define NORMALIZED_SCALE 1000UL
-
-// ============================================================
 // AUTOMATIC ACCELERATION RANGE
 // ============================================================
 //
@@ -131,9 +132,11 @@ uint32_t lastMotionTime = 0;
 // LED UPDATE
 // ============================================================
 
-#define LED_UPDATE_MS 20UL
+#define LED_UPDATE_MS 10UL
 
 uint32_t lastLedUpdate = 0;
+
+FastLEDEffects realEffectEngine;
 
 // ============================================================
 // CLEAR MPU9250 INTERRUPT
@@ -319,7 +322,7 @@ void updateLEDs(
 // POI_CONTROLLER
 // ============================================================
 #include <PoiController.h>
-PoiController poi_controller = PoiController(18000, 1000, 80, 240, 359, true);
+PoiController poi_controller = PoiController(MAX_ACCL_MSS, FP_SCALE, 80, 240, 359, true, &realEffectEngine);
 
 // ============================================================
 // SETUP
@@ -339,6 +342,18 @@ void setup()
     Serial.println("==============================");
 
     setCpuFrequencyMhz(80);
+
+    // --------------------------------------------------------
+    // GPIO
+    // --------------------------------------------------------
+
+    pinMode(IMU_INT_PIN, INPUT_PULLDOWN);
+
+    pinMode(STATUS_LED_PIN, OUTPUT);
+    pinMode(A3, INPUT);
+
+    // Status LED on
+    digitalWrite(STATUS_LED_PIN, LOW);
 
     // --------------------------------------------------------
     // Determine wake reason
@@ -364,22 +379,15 @@ void setup()
 
     bleServer.begin(BLE_DEVICE_NAME, {&endpointAlpha, &endpointBattery});
 
+    // digital capacitor :3
+    delay(250);
+
     // ble_driver->begin(
     //     BLE_DEVICE_NAME,
     //     BLE_SERVICE_UUID,
     //     BLE_CHAR_UUID);
 
 #endif
-    // --------------------------------------------------------
-    // GPIO
-    // --------------------------------------------------------
-
-    pinMode(IMU_INT_PIN, INPUT_PULLDOWN);
-
-    pinMode(STATUS_LED_PIN, OUTPUT);
-
-    // Status LED on
-    digitalWrite(STATUS_LED_PIN, LOW);
 
     // --------------------------------------------------------
     // MPU9250
@@ -408,10 +416,31 @@ void setup()
     // --------------------------------------------------------
     // Sample rate
     // --------------------------------------------------------
+    // srd should be conform with update_led_ms.
 
-    while (!imu.ConfigSrd(19))
+    // MPU9250:
+    //     rate [Hz] = 1000 / (SRD + 1)
+    //
+    // Desired:
+    //     sample period [ms] = LED_UPDATE_MS
+    //
+    // Therefore:
+    //     rate [Hz] = 1000 / LED_UPDATE_MS
+    //     SRD       = 1000 / LED_UPDATE_MS - 1
+
+    static_assert(LED_UPDATE_MS > 0, "LED_UPDATE_MS must not be 0");
+
+    const uint8_t SRD = (1000 / LED_UPDATE_MS) - 1;
+
+    while (!imu.ConfigSrd(SRD))
     {
         Serial.println("Error configuring SRD");
+        delay(100);
+    }
+
+    while (!imu.ConfigAccelRange(bfs::Mpu9250::ACCEL_RANGE_16G))
+    {
+        Serial.println("Error configuring ACCL_Range");
         delay(100);
     }
 
@@ -430,6 +459,9 @@ void setup()
 
     FastLED.setBrightness(
         LED_BRIGHTNESS);
+
+    // lessen LED-Flicker (https://github.com/FastLED/FastLED/wiki/FastLED-Temporal-Dithering)
+    FastLED.setDither(DISABLE_DITHER);
 
     FastLED.clear();
     FastLED.show();
@@ -466,9 +498,10 @@ void loop()
         if (
             now - lastLedUpdate >= LED_UPDATE_MS)
         {
+            uint32_t dt_ms = now - lastLedUpdate;
             lastLedUpdate = now;
 
-            HSV hsv = poi_controller.tick(acceleration);
+            HSV hsv = poi_controller.tick(acceleration, dt_ms);
 
             updateLEDs(hsv);
         }
@@ -489,13 +522,14 @@ void loop()
 
         if (millis() - lastMotionTime >= NO_MOTION_TIMEOUT_MS)
         {
-            enterDeepSleep();
+            // enterDeepSleep();
         }
     }
 
     // ========================================================
     // BLE
     // ========================================================
+
 #if BLE
     if (!bleServer.update().empty())
     {
@@ -511,22 +545,29 @@ void loop()
         }
     }
 
-    // Simuliere einen sinkenden Batteriestand alle 5 Sekunden
     static uint32_t lastUpdate = 0;
     if (millis() - lastUpdate > 5000)
     {
         lastUpdate = millis();
 
-        uint8_t currentBattery = endpointBattery.getValue();
-        if (currentBattery > 0)
-        {
-            currentBattery -= 1; // Akku verliert 1%
+        uint16_t volt = analogReadMilliVolts(BATTERY_MEASUREMENT_PIN) * VOLTAGE_DIVIDER_FACTOR;
 
-            // Pusht den neuen Wert per Notify direkt auf das Handy!
-            endpointBattery.setValue(currentBattery);
+        // 1. Clamp the voltage to our known bounds to prevent math errors
+        if (volt > CHARGE_CUTOFF_V)
+            volt = CHARGE_CUTOFF_V;
+        if (volt < DISCHARGE_CUTOFF_V)
+            volt = DISCHARGE_CUTOFF_V;
 
-            // Serial.printf("Batterie auf %d%% gesunken und gesendet!\n", currentBattery);
-        }
+        uint16_t chargePercentage = ((volt - DISCHARGE_CUTOFF_V) * 100) / (CHARGE_CUTOFF_V - DISCHARGE_CUTOFF_V);
+
+        Serial.print(volt);
+        Serial.print("\t");
+        Serial.println(chargePercentage);
+
+        // Pusht den neuen Wert per Notify direkt auf das Handy!
+        endpointBattery.setValue(chargePercentage);
+
+        poi_controller.setBatteryLevel(chargePercentage);
     }
 #endif
 }
