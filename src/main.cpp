@@ -436,12 +436,7 @@ void loop()
     if (imu.Read())
     {
         uint32_t acceleration = getAbsoluteAcceleration();
-        int32_t diff = acceleration - last_accl_asdawd;
-
-        last_accl_asdawd = acceleration;
-
-        Serial.println(std::abs(diff));
-
+        
         // ----------------------------------------------------
         // LED update
         // ----------------------------------------------------

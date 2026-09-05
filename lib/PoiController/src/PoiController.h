@@ -94,6 +94,8 @@ public:
 
     HSV tick(int32_t value, uint32_t dt_ms)
     {
+        //TODO differentiate between next color-state thingy and
+        // next Automat-State thingy
         ////////////////////////////////////////////////////
         /// HARDWARE STATE CHECK
         ////////////////////////////////////////////////////
