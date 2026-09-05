@@ -34,8 +34,8 @@
 #define VOLTAGE_DIVIDER_FACTOR 2
 #define BATTERY_MEASUREMENT_PIN 3
 const uint16_t CHARGE_CUTOFF_V = 4200;    // mV
-const uint16_t DISCHARGE_CUTOFF_V = 3000; // mV
-
+const uint16_t DISCHARGE_CUTOFF_V = 3230; // mV
+uint16_t chargePercentage = 100;
 // ============================================================
 // MPU9250
 // ============================================================
@@ -50,6 +50,10 @@ bfs::Mpu9250 imu(&Wire, bfs::Mpu9250::I2C_ADDR_PRIM);
 #include <BLEServer.h>
 #include <BleEndpoint.h>
 #include "FastLEDEffects.h"
+
+// can/should be toggled to enable BLE during setup sequence.
+// the state is determined by the safety battery check at boot
+bool bleIsSafe = false;
 
 #define BLE_DEVICE_NAME "POI"
 
@@ -69,9 +73,9 @@ bfs::Mpu9250 imu(&Wire, bfs::Mpu9250::I2C_ADDR_PRIM);
 BleServer bleServer(BLE_SERVICE_UUID);
 // 2. Create our custom typed endpoint (initial value: 80)
 BleEndpoint<uint32_t> endpointAlpha(ALPHA_UUID, "filter_alpha", 80, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
-BleEndpoint<uint16_t> endpointHueMin(HUE_MIN_UUID,"hueMin", 260, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
-BleEndpoint<uint16_t> endpointHueMax(HUE_MAX_UUID, "hueMax",359, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
-BleEndpoint<std::string> endpointCntrlMde(CONTROLLER_MODE_UUID,"CntrlMde", "ACCL", NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
+BleEndpoint<uint16_t> endpointHueMin(HUE_MIN_UUID, "hueMin", 260, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
+BleEndpoint<uint16_t> endpointHueMax(HUE_MAX_UUID, "hueMax", 359, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
+BleEndpoint<std::string> endpointCntrlMde(CONTROLLER_MODE_UUID, "CntrlMde", "ACCL", NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
 
 // Typ: uint8_t | Startwert: 100% | Rechte: Lesen & Benachrichtigen (Kein Schreiben vom Handy!)
 BleEndpoint<uint8_t> endpointBattery(
@@ -351,6 +355,28 @@ void setup()
     Serial.println("==============================");
 
     setCpuFrequencyMhz(80);
+    // --------------------------------------------------------
+    // Safety Check
+    // --------------------------------------------------------
+    // first check battery to determine if BLE should be turned on.
+
+    uint16_t volt = analogReadMilliVolts(BATTERY_MEASUREMENT_PIN) * VOLTAGE_DIVIDER_FACTOR;
+
+    // 1. Clamp the voltage to our known bounds to prevent math errors
+    if (volt > CHARGE_CUTOFF_V)
+        volt = CHARGE_CUTOFF_V;
+    if (volt < DISCHARGE_CUTOFF_V)
+        volt = DISCHARGE_CUTOFF_V;
+
+    uint16_t chargePercentage = ((volt - DISCHARGE_CUTOFF_V) * 100) / (CHARGE_CUTOFF_V - DISCHARGE_CUTOFF_V);
+    if (chargePercentage < 10)
+    {
+        bleIsSafe = false;
+    }
+    else
+    {
+        bleIsSafe = true;
+    }
 
     // --------------------------------------------------------
     // GPIO
@@ -384,21 +410,25 @@ void setup()
     // BLE
     // --------------------------------------------------------
 #if BLE
-    Serial.println("Starting BLE...");
+    if (bleIsSafe)
+    {
 
-    bleServer.begin(BLE_DEVICE_NAME, {&endpointAlpha,
-                                      &endpointHueMin,
-                                      &endpointHueMax,
-                                      &endpointBattery,
-                                      &endpointCntrlMde});
+        Serial.println("Starting BLE...");
 
-    // digital capacitor :3
-    delay(250);
+        bleServer.begin(BLE_DEVICE_NAME, {&endpointAlpha,
+                                          &endpointHueMin,
+                                          &endpointHueMax,
+                                          &endpointBattery,
+                                          &endpointCntrlMde});
 
-    // ble_driver->begin(
-    //     BLE_DEVICE_NAME,
-    //     BLE_SERVICE_UUID,
-    //     BLE_CHAR_UUID);
+        // digital capacitor :3
+        delay(250);
+
+        // ble_driver->begin(
+        //     BLE_DEVICE_NAME,
+        //     BLE_SERVICE_UUID,
+        //     BLE_CHAR_UUID);
+    }
 
 #endif
 
@@ -540,61 +570,8 @@ void loop()
     }
 
     // ========================================================
-    // BLE
+    // BATTERY POWER
     // ========================================================
-
-#if BLE
-    if (!bleServer.update().empty())
-    {
-        // TODO changed endpoint receiver
-        // 5. Read the value directly and safely
-        uint32_t newAlpha = endpointAlpha.getValue();
-        Serial.printf("[MAIN] Received Alpha: %d\n", newAlpha);
-
-        if (newAlpha != poi_controller.getAlpha())
-        {
-            poi_controller.setAlpha(newAlpha);
-            Serial.printf("[MAIN] Alpha updated to: %d\n", poi_controller.getAlpha());
-        }
-
-        uint16_t newHueMin = endpointHueMin.getValue();
-        if (newHueMin != poi_controller.getHueMin())
-        {
-            poi_controller.setColorRange(newHueMin, poi_controller.getHueMax());
-        }
-
-        uint16_t newHueMax = endpointHueMax.getValue();
-        if (newHueMax != poi_controller.getHueMax())
-        {
-            poi_controller.setColorRange(poi_controller.getHueMin(), newHueMax);
-        }
-
-        std::string newCntrlMde = endpointCntrlMde.getValue();
-
-        if (newCntrlMde != poi_controller.getModeStr())
-        {
-            if (newCntrlMde == "ACCL")
-            {
-                poi_controller.setMode(POI_MODE::ACCELERATION);
-            }
-            else if (newCntrlMde == "CONS")
-            {
-                poi_controller.setMode(POI_MODE::CONSTANT);
-            }
-            else if (newCntrlMde == "GYRO")
-            {
-                poi_controller.setMode(POI_MODE::GYRO);
-            }
-            else
-            {
-                // the person fucked up. idk how
-                // the shortenings above are TOTALLY CLEAR
-                // :3
-            }
-        }
-        Serial.print(newCntrlMde.c_str());
-        Serial.print(poi_controller.getModeStr());
-    }
 
     static uint32_t lastUpdate = 0;
     if (millis() - lastUpdate > 5000)
@@ -609,16 +586,80 @@ void loop()
         if (volt < DISCHARGE_CUTOFF_V)
             volt = DISCHARGE_CUTOFF_V;
 
-        uint16_t chargePercentage = ((volt - DISCHARGE_CUTOFF_V) * 100) / (CHARGE_CUTOFF_V - DISCHARGE_CUTOFF_V);
+        chargePercentage = ((volt - DISCHARGE_CUTOFF_V) * 100) / (CHARGE_CUTOFF_V - DISCHARGE_CUTOFF_V);
 
         Serial.print(volt);
         Serial.print("\t");
         Serial.println(chargePercentage);
 
-        // Pusht den neuen Wert per Notify direkt auf das Handy!
-        endpointBattery.setValue(chargePercentage);
-
         poi_controller.setBatteryLevel(chargePercentage);
     }
+
+    // ========================================================
+    // BLE
+    // ========================================================
+
+#if BLE
+    if (bleIsSafe)
+    {
+        // Pusht den neuen Wert per Notify direkt auf das Handy!
+        if (chargePercentage != endpointBattery.getValue())
+        {
+            endpointBattery.setValue(chargePercentage);
+        }
+
+        if (!bleServer.update().empty())
+        {
+            // TODO changed endpoint receiver
+            // 5. Read the value directly and safely
+            uint32_t newAlpha = endpointAlpha.getValue();
+            Serial.printf("[MAIN] Received Alpha: %d\n", newAlpha);
+
+            if (newAlpha != poi_controller.getAlpha())
+            {
+                poi_controller.setAlpha(newAlpha);
+                Serial.printf("[MAIN] Alpha updated to: %d\n", poi_controller.getAlpha());
+            }
+
+            uint16_t newHueMin = endpointHueMin.getValue();
+            if (newHueMin != poi_controller.getHueMin())
+            {
+                poi_controller.setColorRange(newHueMin, poi_controller.getHueMax());
+            }
+
+            uint16_t newHueMax = endpointHueMax.getValue();
+            if (newHueMax != poi_controller.getHueMax())
+            {
+                poi_controller.setColorRange(poi_controller.getHueMin(), newHueMax);
+            }
+
+            std::string newCntrlMde = endpointCntrlMde.getValue();
+
+            if (newCntrlMde != poi_controller.getModeStr())
+            {
+                if (newCntrlMde == "ACCL")
+                {
+                    poi_controller.setMode(POI_MODE::ACCELERATION);
+                }
+                else if (newCntrlMde == "CONS")
+                {
+                    poi_controller.setMode(POI_MODE::CONSTANT);
+                }
+                else if (newCntrlMde == "GYRO")
+                {
+                    poi_controller.setMode(POI_MODE::GYRO);
+                }
+                else
+                {
+                    // the person fucked up. idk how
+                    // the shortenings above are TOTALLY CLEAR
+                    // :3
+                }
+            }
+            Serial.print(newCntrlMde.c_str());
+            Serial.print(poi_controller.getModeStr());
+        }
+    }
+
 #endif
 }
