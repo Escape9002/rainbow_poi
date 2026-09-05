@@ -3,13 +3,15 @@
 #include <LowPass.h>
 #include <HSV.h>
 #include <EffectEngine.h>
+#include <HAL.h>
 
 enum class POI_MODE
 {
     ACCELERATION,
     GYRO,
     CONSTANT,
-    LOW_BATTERY
+    LOW_BATTERY,
+    SLEEP
 };
 
 class PoiController
@@ -30,6 +32,11 @@ private:
 
     uint32_t hueMin, hueMax;
 
+    int32_t lastAccl = 0;
+    static const uint32_t JITTER_THRESHOLD = 200;
+    uint32_t idle_time_ms = 0;
+    static const uint32_t NO_MOTION_TIMEOUT_MS = 10*1000; // ms
+
     // --------------------------------------------------------
     // OBJECT VARS and PARAMS
     // --------------------------------------------------------
@@ -40,6 +47,7 @@ private:
     POI_MODE current_mode = POI_MODE::ACCELERATION;
 
     EffectEngine *effectEngine;
+    HAL *hal;
 
     // --------------------------------------------------------
     // HELPER FUNCTIONS
@@ -49,6 +57,8 @@ private:
     uint32_t filter(const uint32_t value);
     HSV map_color(const uint32_t value);
     HSV acceleration_ani(uint32_t value);
+
+    bool no_movement(int32_t value);
 
 public:
     /**
@@ -67,14 +77,16 @@ public:
                   uint32_t hueMin,
                   uint32_t hueMax,
                   bool dynamic_max,
-                  EffectEngine *engine)
+                  EffectEngine *engine,
+                  HAL *hal)
         : VALUE_MAX(value_max),
           NORM_SCALE(norm_scale),
           hueMin(hueMin),
           hueMax(hueMax),
           dynamic_max(dynamic_max),
           lPass(alpha),
-          effectEngine(engine)
+          effectEngine(engine),
+          hal(hal)
 
     {
         hsv = HSV{255, 255, 255};
@@ -82,7 +94,28 @@ public:
 
     HSV tick(int32_t value, uint32_t dt_ms)
     {
+        //TODO differentiate between next color-state thingy and
+        // next Automat-State thingy
+        ////////////////////////////////////////////////////
+        /// HARDWARE STATE CHECK
+        ////////////////////////////////////////////////////
+        if (no_movement(value))
+        {
+            idle_time_ms += dt_ms;
+        }
+        else
+        {
+            idle_time_ms = 0;
+        }
 
+        if (idle_time_ms > NO_MOTION_TIMEOUT_MS)
+        {
+            this->current_mode = POI_MODE::SLEEP;
+        }
+
+        ////////////////////////////////////////////////////
+        /// AUTOMATON
+        ////////////////////////////////////////////////////
         switch (current_mode)
         {
         case POI_MODE::ACCELERATION:
@@ -92,6 +125,11 @@ public:
 
         case POI_MODE::LOW_BATTERY:
             return effectEngine->flash(HSV{0, 255, 255}, 500);
+            break;
+
+        case POI_MODE::SLEEP:
+            this->hal->enterDeepSleep();
+            return HSV{0, 0, 0};
             break;
 
         case POI_MODE::GYRO:
@@ -125,6 +163,6 @@ public:
     void setDynamicMax(bool state);
 
     POI_MODE getMode();
-    const char* getModeStr();
+    const char *getModeStr();
     void setMode(POI_MODE mode);
 };
