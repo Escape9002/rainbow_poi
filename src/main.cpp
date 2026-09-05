@@ -33,7 +33,7 @@
 
 #define VOLTAGE_DIVIDER_FACTOR 2
 #define BATTERY_MEASUREMENT_PIN 3
-const uint16_t CHARGE_CUTOFF_V = 4200; // mV
+const uint16_t CHARGE_CUTOFF_V = 4200;    // mV
 const uint16_t DISCHARGE_CUTOFF_V = 3000; // mV
 
 // ============================================================
@@ -475,9 +475,10 @@ void loop()
         if (
             now - lastLedUpdate >= LED_UPDATE_MS)
         {
+            uint32_t dt_ms = now - lastLedUpdate;
             lastLedUpdate = now;
 
-            HSV hsv = poi_controller.tick(acceleration);
+            HSV hsv = poi_controller.tick(acceleration, dt_ms);
 
             updateLEDs(hsv);
         }
@@ -521,7 +522,6 @@ void loop()
         }
     }
 
-    
     static uint32_t lastUpdate = 0;
     if (millis() - lastUpdate > 5000)
     {
@@ -530,11 +530,13 @@ void loop()
         uint16_t volt = analogReadMilliVolts(BATTERY_MEASUREMENT_PIN) * VOLTAGE_DIVIDER_FACTOR;
 
         // 1. Clamp the voltage to our known bounds to prevent math errors
-        if (volt > CHARGE_CUTOFF_V) volt = CHARGE_CUTOFF_V;
-        if (volt < DISCHARGE_CUTOFF_V) volt = DISCHARGE_CUTOFF_V;
+        if (volt > CHARGE_CUTOFF_V)
+            volt = CHARGE_CUTOFF_V;
+        if (volt < DISCHARGE_CUTOFF_V)
+            volt = DISCHARGE_CUTOFF_V;
 
-        uint16_t chargePercentage = ((volt - DISCHARGE_CUTOFF_V)*100) / (CHARGE_CUTOFF_V - DISCHARGE_CUTOFF_V);
-        
+        uint16_t chargePercentage = ((volt - DISCHARGE_CUTOFF_V) * 100) / (CHARGE_CUTOFF_V - DISCHARGE_CUTOFF_V);
+
         Serial.print(volt);
         Serial.print("\t");
         Serial.println(chargePercentage);
@@ -542,7 +544,7 @@ void loop()
         // Pusht den neuen Wert per Notify direkt auf das Handy!
         endpointBattery.setValue(chargePercentage);
 
-        
+        poi_controller.setBatteryLevel(chargePercentage);
     }
 #endif
 }

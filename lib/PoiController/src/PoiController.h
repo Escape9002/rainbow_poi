@@ -3,6 +3,13 @@
 #include <LowPass.h>
 #include <HSV.h>
 
+enum class POI_MODE {
+    ACCELERATION,
+    GYRO,
+    CONSTANT,
+    LOW_BATTERY
+};
+
 class PoiController
 {
 private:
@@ -16,6 +23,12 @@ private:
 
     LowPassFilter<uint32_t> lPass;
     HSV hsv;
+
+    POI_MODE current_mode = POI_MODE::ACCELERATION;
+
+    uint32_t flash_timer_ms = 0;
+    bool flash_state = false;
+    const uint32_t FLASH_INTERVAL_MS = 500;
 
     // TODO potential overroll here, since signed INT used
     int32_t normalize(int32_t value)
@@ -50,35 +63,7 @@ private:
             255};
     }
 
-public:
-/**
- * @brief Construct a new Poi Controller object
- * 
- * @param value_max maximum accleration 
- * @param norm_scale scale on which to operate concerning float to fix-point
- * @param alpha lowPass alpha
- * @param min hueMin
- * @param max hueMax
- * @param dynamic_max enable dynamic maximum acceleration
- */
-    PoiController(uint32_t value_max,
-                  uint32_t norm_scale,
-                  uint32_t alpha,
-                  uint32_t min,
-                  uint32_t max,
-                  bool dynamic_max)
-        : VALUE_MAX(value_max),
-          NORM_SCALE(norm_scale),
-          min(min),
-          max(max),
-          dynamic_max(dynamic_max),
-          lPass(alpha)
-
-    {
-        hsv = HSV{255, 255, 255};
-    }
-
-    HSV tick(int32_t value)
+    HSV acceleration_ani(uint32_t value, uint32_t dt_ms)
     {
 
         if (dynamic_max)
@@ -97,6 +82,90 @@ public:
         uint32_t filtered = filter(normalized);
 
         return map_color(filtered);
+    }
+
+    HSV low_battery_ani(uint32_t value, uint32_t dt_ms)
+    {
+        if (flash_timer_ms >= FLASH_INTERVAL_MS)
+        {
+            flash_timer_ms = 0;
+            flash_state = !flash_state;
+        }
+
+        if (flash_state)
+        {
+            // Return Pure Red at max brightness
+            return HSV{0, 255, 255};
+        }
+        else
+        {
+            // Return Black (Off) - Brightness = 0
+            return HSV{0, 0, 0};
+        }
+    }
+
+public:
+    /**
+     * @brief Construct a new Poi Controller object
+     *
+     * @param value_max maximum accleration
+     * @param norm_scale scale on which to operate concerning float to fix-point
+     * @param alpha lowPass alpha
+     * @param min hueMin
+     * @param max hueMax
+     * @param dynamic_max enable dynamic maximum acceleration
+     */
+    PoiController(uint32_t value_max,
+                  uint32_t norm_scale,
+                  uint32_t alpha,
+                  uint32_t min,
+                  uint32_t max,
+                  bool dynamic_max)
+        : VALUE_MAX(value_max),
+          NORM_SCALE(norm_scale),
+          min(min),
+          max(max),
+          dynamic_max(dynamic_max),
+          lPass(alpha)
+
+    {
+        hsv = HSV{255, 255, 255};
+    }
+
+    HSV tick(int32_t value, uint32_t dt_ms)
+    {
+        flash_timer_ms += dt_ms;
+
+        switch (current_mode)
+        {
+        case POI_MODE::ACCELERATION:
+            return acceleration_ani(value, dt_ms);
+
+            break;
+
+        case POI_MODE::LOW_BATTERY:
+            return low_battery_ani(value, dt_ms);
+            break;
+
+        case POI_MODE::GYRO:
+        case POI_MODE::CONSTANT:
+        default:
+            return HSV{0, 0, 0};
+        }
+    }
+
+    void setBatteryLevel(uint8_t batteryPercentage)
+    {
+        if (batteryPercentage < 10 && current_mode != POI_MODE::LOW_BATTERY)
+        {
+            // Save the mode so we can return to it if plugged in
+
+            current_mode = POI_MODE::LOW_BATTERY;
+        }
+        else if (batteryPercentage >= 10 && current_mode == POI_MODE::LOW_BATTERY)
+        {
+            // this must be a sensor error, we can not charge the battery while the Board is powered
+        }
     }
 
     void setAlpha(uint32_t alpha)
