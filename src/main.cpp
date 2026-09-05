@@ -63,17 +63,20 @@ bfs::Mpu9250 imu(&Wire, bfs::Mpu9250::I2C_ADDR_PRIM);
     "f79431f4-255a-400e-a9d4-63c0d5be5e2a"
 #define HUE_MAX_UUID \
     "f789580d-1fd5-4579-bf3f-18db5adc6b3e"
-
+#define CONTROLLER_MODE_UUID \
+    "bbe6c883-f669-4fa8-b110-808feb345e75"
 // 1. Create the server instance
 BleServer bleServer(BLE_SERVICE_UUID);
 // 2. Create our custom typed endpoint (initial value: 80)
-BleEndpoint<uint32_t> endpointAlpha(ALPHA_UUID, 80, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
-BleEndpoint<uint16_t> endpointHueMin(HUE_MIN_UUID, 260, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
-BleEndpoint<uint16_t> endpointHueMax(HUE_MAX_UUID, 359, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
+BleEndpoint<uint32_t> endpointAlpha(ALPHA_UUID, "filter_alpha", 80, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
+BleEndpoint<uint16_t> endpointHueMin(HUE_MIN_UUID,"hueMin", 260, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
+BleEndpoint<uint16_t> endpointHueMax(HUE_MAX_UUID, "hueMax",359, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
+BleEndpoint<std::string> endpointCntrlMde(CONTROLLER_MODE_UUID,"CntrlMde", "ACCL", NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
 
 // Typ: uint8_t | Startwert: 100% | Rechte: Lesen & Benachrichtigen (Kein Schreiben vom Handy!)
 BleEndpoint<uint8_t> endpointBattery(
     BATTERY_CHAR_UUID,
+    "BatteryLvl",
     100,
     NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
 #endif
@@ -383,7 +386,11 @@ void setup()
 #if BLE
     Serial.println("Starting BLE...");
 
-    bleServer.begin(BLE_DEVICE_NAME, {&endpointAlpha, &endpointHueMin, &endpointHueMax, &endpointBattery});
+    bleServer.begin(BLE_DEVICE_NAME, {&endpointAlpha,
+                                      &endpointHueMin,
+                                      &endpointHueMax,
+                                      &endpointBattery,
+                                      &endpointCntrlMde});
 
     // digital capacitor :3
     delay(250);
@@ -550,17 +557,43 @@ void loop()
             Serial.printf("[MAIN] Alpha updated to: %d\n", poi_controller.getAlpha());
         }
 
-        uint16_t newHueMin =  endpointHueMin.getValue();
+        uint16_t newHueMin = endpointHueMin.getValue();
         if (newHueMin != poi_controller.getHueMin())
         {
             poi_controller.setColorRange(newHueMin, poi_controller.getHueMax());
         }
 
-        uint16_t newHueMax =  endpointHueMax.getValue();
+        uint16_t newHueMax = endpointHueMax.getValue();
         if (newHueMax != poi_controller.getHueMax())
         {
             poi_controller.setColorRange(poi_controller.getHueMin(), newHueMax);
         }
+
+        std::string newCntrlMde = endpointCntrlMde.getValue();
+
+        if (newCntrlMde != poi_controller.getModeStr())
+        {
+            if (newCntrlMde == "ACCL")
+            {
+                poi_controller.setMode(POI_MODE::ACCELERATION);
+            }
+            else if (newCntrlMde == "CONS")
+            {
+                poi_controller.setMode(POI_MODE::CONSTANT);
+            }
+            else if (newCntrlMde == "GYRO")
+            {
+                poi_controller.setMode(POI_MODE::GYRO);
+            }
+            else
+            {
+                // the person fucked up. idk how
+                // the shortenings above are TOTALLY CLEAR
+                // :3
+            }
+        }
+        Serial.print(newCntrlMde.c_str());
+        Serial.print(poi_controller.getModeStr());
     }
 
     static uint32_t lastUpdate = 0;

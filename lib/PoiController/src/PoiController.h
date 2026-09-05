@@ -123,4 +123,8 @@ public:
     uint32_t getHueMax();
 
     void setDynamicMax(bool state);
+
+    POI_MODE getMode();
+    const char* getModeStr();
+    void setMode(POI_MODE mode);
 };
