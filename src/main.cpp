@@ -344,6 +344,18 @@ void setup()
     setCpuFrequencyMhz(80);
 
     // --------------------------------------------------------
+    // GPIO
+    // --------------------------------------------------------
+
+    pinMode(IMU_INT_PIN, INPUT_PULLDOWN);
+
+    pinMode(STATUS_LED_PIN, OUTPUT);
+    pinMode(A3, INPUT);
+
+    // Status LED on
+    digitalWrite(STATUS_LED_PIN, LOW);
+
+    // --------------------------------------------------------
     // Determine wake reason
     // --------------------------------------------------------
 
@@ -376,17 +388,6 @@ void setup()
     //     BLE_CHAR_UUID);
 
 #endif
-    // --------------------------------------------------------
-    // GPIO
-    // --------------------------------------------------------
-
-    pinMode(IMU_INT_PIN, INPUT_PULLDOWN);
-
-    pinMode(STATUS_LED_PIN, OUTPUT);
-    pinMode(A3, INPUT);
-
-    // Status LED on
-    digitalWrite(STATUS_LED_PIN, LOW);
 
     // --------------------------------------------------------
     // MPU9250
@@ -426,7 +427,7 @@ void setup()
     // Therefore:
     //     rate [Hz] = 1000 / LED_UPDATE_MS
     //     SRD       = 1000 / LED_UPDATE_MS - 1
-    
+
     static_assert(LED_UPDATE_MS > 0, "LED_UPDATE_MS must not be 0");
 
     const uint8_t SRD = (1000 / LED_UPDATE_MS) - 1;
