@@ -22,6 +22,20 @@ inline int32_t parseBLEString<int32_t>(const std::string &s)
 }
 
 template <>
+inline std::string parseBLEString<std::string>(const std::string &s)
+{
+
+    return s;
+}
+
+template <>
+inline uint16_t parseBLEString<uint16_t>(const std::string &s)
+{
+
+    return static_cast<uint16_t>(std::strtol(s.c_str(), nullptr, 10));
+}
+
+template <>
 inline uint32_t parseBLEString<uint32_t>(const std::string &s)
 {
 
@@ -55,6 +69,7 @@ class BleEndpoint : public BleEndpointBase, public NimBLECharacteristicCallbacks
 {
 private:
     std::string _uuid;
+    std::string _description;
     uint32_t _properties;
     T _bg_value;
     T _fg_value;
@@ -71,8 +86,16 @@ public:
     BleEndpoint &operator=(const BleEndpoint &) = delete;
 
     // C++11 STANDARD: Use const reference for initialValue
-    BleEndpoint(const char *uuid, const T &initialValue, uint32_t properties = NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE)
-        : _uuid(uuid), _properties(properties), _bg_value(initialValue), _fg_value(initialValue),
+    BleEndpoint(
+        const char *uuid,
+        const char *description,
+        const T &initialValue,
+        uint32_t properties = NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE)
+        : _uuid(uuid),
+          _description(description),
+          _properties(properties),
+          _bg_value(initialValue),
+          _fg_value(initialValue),
           _has_updates(false), _pChar(nullptr)
     {
         _mutex = xSemaphoreCreateMutex();
@@ -93,6 +116,14 @@ public:
 
         // NIMBLE 2.x STANDARD: NimBLE natively supports templates for setValue!
         _pChar->setValue(_fg_value);
+
+        // Human-readable characteristic description
+        NimBLEDescriptor *description =
+            _pChar->createDescriptor(
+                "2901",
+                NIMBLE_PROPERTY::READ);
+
+        description->setValue(_description);
     }
 
     void onWrite(NimBLECharacteristic *pChar, NimBLEConnInfo &connInfo) override
@@ -112,19 +143,6 @@ public:
                 xSemaphoreGive(_mutex);
             }
         }
-
-        //    // Manual memcpy is kept here because it acts as a strict safety bounds-check
-        // // ensuring the phone sent exactly sizeof(T) bytes before we write to memory.
-        // // if (rxData.length() == sizeof(T)) {
-        //     T incomingValue;
-        //     memcpy(&incomingValue, rxData.data(), sizeof(T));
-
-        //     if (xSemaphoreTake(_mutex, portMAX_DELAY)) {
-        //         _bg_value = incomingValue;
-        //         _has_updates = true;
-        //         xSemaphoreGive(_mutex);
-        //     }
-        // // }
     }
 
     bool update() override

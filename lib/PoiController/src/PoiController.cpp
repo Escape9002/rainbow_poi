@@ -1,4 +1,5 @@
 #include <PoiController.h>
+#include <string>
 
 int32_t PoiController::normalize(int32_t value)
 {
@@ -65,8 +66,8 @@ uint32_t PoiController::getAlpha()
 
 void PoiController::setColorRange(uint32_t hueMin, uint32_t hueMax)
 {
-    this->hueMin = hueMin;
-    this->hueMax = hueMax;
+    this->hueMin = hueMin % 360;
+    this->hueMax = hueMax % 360;
 }
 
 uint32_t PoiController::getHueMin()
@@ -82,4 +83,34 @@ uint32_t PoiController::getHueMax()
 void PoiController::setDynamicMax(bool state)
 {
     dynamic_max = state;
+}
+
+POI_MODE PoiController::getMode()
+{
+    return this->current_mode;
+}
+
+const char* PoiController::getModeStr()
+{
+    switch (this->getMode())
+    {
+    case POI_MODE::ACCELERATION:
+        return "ACCL";
+
+    case POI_MODE::CONSTANT:
+        return "CONS";
+
+    case POI_MODE::GYRO:
+        return "GYRO";
+
+    case POI_MODE::LOW_BATTERY:
+        return "LWBT";
+
+    default:
+        return "ERRO";
+    }
+}
+
+void PoiController::setMode(POI_MODE mode) {
+    this->current_mode = mode;
 }
