@@ -49,6 +49,7 @@ bfs::Mpu9250 imu(&Wire, bfs::Mpu9250::I2C_ADDR_PRIM);
 #if BLE
 #include <BLEServer.h>
 #include <BleEndpoint.h>
+#include "FastLEDEffects.h"
 
 #define BLE_DEVICE_NAME "POI"
 
@@ -110,11 +111,6 @@ CRGB leds[NUM_LEDS];
 #define MINIMUM_ACCL_MSS DEADZONE_MSS
 
 // ============================================================
-// HSV CONVERSION RANGE
-// ============================================================
-#define NORMALIZED_SCALE 1000UL
-
-// ============================================================
 // AUTOMATIC ACCELERATION RANGE
 // ============================================================
 //
@@ -139,6 +135,9 @@ uint32_t lastMotionTime = 0;
 #define LED_UPDATE_MS 20UL
 
 uint32_t lastLedUpdate = 0;
+
+FastLEDEffects realEffectEngine;
+
 
 // ============================================================
 // CLEAR MPU9250 INTERRUPT
@@ -324,7 +323,7 @@ void updateLEDs(
 // POI_CONTROLLER
 // ============================================================
 #include <PoiController.h>
-PoiController poi_controller = PoiController(18000, 1000, 80, 240, 359, true);
+PoiController poi_controller = PoiController(MAX_ACCL_MSS, FP_SCALE, 80, 240, 359, true, &realEffectEngine);
 
 // ============================================================
 // SETUP

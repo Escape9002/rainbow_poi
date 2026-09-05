@@ -2,6 +2,7 @@
 
 #include <LowPass.h>
 #include <HSV.h>
+#include <EffectEngine.h>
 
 enum class POI_MODE {
     ACCELERATION,
@@ -26,9 +27,7 @@ private:
 
     POI_MODE current_mode = POI_MODE::ACCELERATION;
 
-    uint32_t flash_timer_ms = 0;
-    bool flash_state = false;
-    const uint32_t FLASH_INTERVAL_MS = 500;
+    EffectEngine* effectEngine;
 
     // TODO potential overroll here, since signed INT used
     int32_t normalize(int32_t value)
@@ -63,7 +62,7 @@ private:
             255};
     }
 
-    HSV acceleration_ani(uint32_t value, uint32_t dt_ms)
+    HSV acceleration_ani(uint32_t value)
     {
 
         if (dynamic_max)
@@ -84,26 +83,6 @@ private:
         return map_color(filtered);
     }
 
-    HSV low_battery_ani(uint32_t value, uint32_t dt_ms)
-    {
-        if (flash_timer_ms >= FLASH_INTERVAL_MS)
-        {
-            flash_timer_ms = 0;
-            flash_state = !flash_state;
-        }
-
-        if (flash_state)
-        {
-            // Return Pure Red at max brightness
-            return HSV{0, 255, 255};
-        }
-        else
-        {
-            // Return Black (Off) - Brightness = 0
-            return HSV{0, 0, 0};
-        }
-    }
-
 public:
     /**
      * @brief Construct a new Poi Controller object
@@ -120,13 +99,15 @@ public:
                   uint32_t alpha,
                   uint32_t min,
                   uint32_t max,
-                  bool dynamic_max)
+                  bool dynamic_max,
+                EffectEngine* engine)
         : VALUE_MAX(value_max),
           NORM_SCALE(norm_scale),
           min(min),
           max(max),
           dynamic_max(dynamic_max),
-          lPass(alpha)
+          lPass(alpha),
+          effectEngine(engine)
 
     {
         hsv = HSV{255, 255, 255};
@@ -134,23 +115,22 @@ public:
 
     HSV tick(int32_t value, uint32_t dt_ms)
     {
-        flash_timer_ms += dt_ms;
 
         switch (current_mode)
         {
         case POI_MODE::ACCELERATION:
-            return acceleration_ani(value, dt_ms);
+            return acceleration_ani(value);
 
             break;
 
         case POI_MODE::LOW_BATTERY:
-            return low_battery_ani(value, dt_ms);
+            return effectEngine->flash(HSV{0, 255,255}, 500);
             break;
 
         case POI_MODE::GYRO:
         case POI_MODE::CONSTANT:
         default:
-            return HSV{0, 0, 0};
+            return effectEngine->rainbow(10);
         }
     }
 
