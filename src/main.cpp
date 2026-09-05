@@ -132,12 +132,11 @@ uint32_t lastMotionTime = 0;
 // LED UPDATE
 // ============================================================
 
-#define LED_UPDATE_MS 20UL
+#define LED_UPDATE_MS 10UL
 
 uint32_t lastLedUpdate = 0;
 
 FastLEDEffects realEffectEngine;
-
 
 // ============================================================
 // CLEAR MPU9250 INTERRUPT
@@ -416,10 +415,31 @@ void setup()
     // --------------------------------------------------------
     // Sample rate
     // --------------------------------------------------------
+    // srd should be conform with update_led_ms.
 
-    while (!imu.ConfigSrd(19))
+    // MPU9250:
+    //     rate [Hz] = 1000 / (SRD + 1)
+    //
+    // Desired:
+    //     sample period [ms] = LED_UPDATE_MS
+    //
+    // Therefore:
+    //     rate [Hz] = 1000 / LED_UPDATE_MS
+    //     SRD       = 1000 / LED_UPDATE_MS - 1
+    
+    static_assert(LED_UPDATE_MS > 0, "LED_UPDATE_MS must not be 0");
+
+    const uint8_t SRD = (1000 / LED_UPDATE_MS) - 1;
+
+    while (!imu.ConfigSrd(SRD))
     {
         Serial.println("Error configuring SRD");
+        delay(100);
+    }
+
+    while (!imu.ConfigAccelRange(bfs::Mpu9250::ACCEL_RANGE_16G))
+    {
+        Serial.println("Error configuring ACCL_Range");
         delay(100);
     }
 
@@ -438,6 +458,9 @@ void setup()
 
     FastLED.setBrightness(
         LED_BRIGHTNESS);
+
+    // lessen LED-Flicker (https://github.com/FastLED/FastLED/wiki/FastLED-Temporal-Dithering)
+    FastLED.setDither(DISABLE_DITHER);
 
     FastLED.clear();
     FastLED.show();
@@ -498,7 +521,7 @@ void loop()
 
         if (millis() - lastMotionTime >= NO_MOTION_TIMEOUT_MS)
         {
-            enterDeepSleep();
+            // enterDeepSleep();
         }
     }
 
