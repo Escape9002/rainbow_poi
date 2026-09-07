@@ -23,9 +23,12 @@ private:
 
     // maximum value (like acclereation) to expect
     // TODO: validate that the "const" actually does anything
-    const uint32_t VALUE_MAX = 1000;
-    uint32_t value_max_dyn = VALUE_MAX;
+    const uint32_t ACCL_MAX = 1000;
+    uint32_t accl_max_dyn = ACCL_MAX;
     bool dynamic_max = false;
+
+    const uint32_t GYRO_MAX = 1000;
+    uint32_t gyro_max_dyn = GYRO_MAX;
 
     // our filters and stuff work with a scale of 0 to NORM_SCALE
     const uint32_t NORM_SCALE = 1000;
@@ -35,7 +38,7 @@ private:
     int32_t lastAccl = 0;
     static const uint32_t JITTER_THRESHOLD = 200;
     uint32_t idle_time_ms = 0;
-    static const uint32_t NO_MOTION_TIMEOUT_MS = 10*1000; // ms
+    static const uint32_t NO_MOTION_TIMEOUT_MS = 10 * 1000; // ms
 
     // --------------------------------------------------------
     // OBJECT VARS and PARAMS
@@ -44,7 +47,7 @@ private:
     LowPassFilter<uint32_t> lPass;
     HSV hsv;
 
-    POI_MODE current_mode = POI_MODE::ACCELERATION;
+    POI_MODE current_mode = POI_MODE::GYRO;
 
     EffectEngine *effectEngine;
     HAL *hal;
@@ -52,11 +55,12 @@ private:
     // --------------------------------------------------------
     // HELPER FUNCTIONS
     // --------------------------------------------------------
-
-    int32_t normalize(int32_t value);
+    HSV animate(uint32_t max_variable, uint32_t &dynamic_max_variable, uint32_t value);
+    int32_t normalize(int32_t value, int32_t value_max);
     uint32_t filter(const uint32_t value);
     HSV map_color(const uint32_t value);
     HSV acceleration_ani(uint32_t value);
+    HSV gyro_ani(uint32_t value);
 
     bool no_movement(int32_t value);
 
@@ -64,14 +68,15 @@ public:
     /**
      * @brief Construct a new Poi Controller object
      *
-     * @param value_max maximum accleration
+     * @param accl_max maximum accleration
      * @param norm_scale scale on which to operate concerning float to fix-point
      * @param alpha lowPass alpha
      * @param min hueMin
      * @param max hueMax
      * @param dynamic_max enable dynamic maximum acceleration
      */
-    PoiController(uint32_t value_max,
+    PoiController(uint32_t accl_max,
+                  uint32_t gyro_max,
                   uint32_t norm_scale,
                   uint32_t alpha,
                   uint32_t hueMin,
@@ -79,7 +84,7 @@ public:
                   bool dynamic_max,
                   EffectEngine *engine,
                   HAL *hal)
-        : VALUE_MAX(value_max),
+        : ACCL_MAX(accl_max),
           NORM_SCALE(norm_scale),
           hueMin(hueMin),
           hueMax(hueMax),
@@ -94,8 +99,8 @@ public:
 
     HSV tick(int32_t value, uint32_t dt_ms)
     {
-        //TODO differentiate between next color-state thingy and
-        // next Automat-State thingy
+        // TODO differentiate between next color-state thingy and
+        //  next Automat-State thingy
         ////////////////////////////////////////////////////
         /// HARDWARE STATE CHECK
         ////////////////////////////////////////////////////
@@ -133,6 +138,9 @@ public:
             break;
 
         case POI_MODE::GYRO:
+            return gyro_ani(value);
+            break;
+
         case POI_MODE::CONSTANT:
         default:
             return effectEngine->rainbow(10);
