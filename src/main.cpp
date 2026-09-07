@@ -74,7 +74,7 @@ BleServer bleServer(BLE_SERVICE_UUID);
 BleEndpoint<uint32_t> endpointAlpha(ALPHA_UUID, "filter_alpha", 80, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
 BleEndpoint<uint16_t> endpointHueMin(HUE_MIN_UUID, "hueMin", 260, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
 BleEndpoint<uint16_t> endpointHueMax(HUE_MAX_UUID, "hueMax", 359, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
-BleEndpoint<std::string> endpointCntrlMde(CONTROLLER_MODE_UUID, "CntrlMde", "ACCL", NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
+BleEndpoint<std::string> endpointCntrlMde(CONTROLLER_MODE_UUID, "CntrlMde", "GYRO", NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
 
 // Typ: uint8_t | Startwert: 100% | Rechte: Lesen & Benachrichtigen (Kein Schreiben vom Handy!)
 BleEndpoint<uint8_t> endpointBattery(
@@ -138,7 +138,7 @@ uint32_t MAX_GYRO_RADS = 200;
 // LED UPDATE
 // ============================================================
 
-#define LED_UPDATE_MS 10UL
+#define LED_UPDATE_MS 5UL
 
 uint32_t lastLedUpdate = 0;
 
@@ -253,6 +253,25 @@ void updateLEDs(
 }
 
 // ============================================================
+// GET BATTTERY PERCENTAGE
+// ============================================================
+
+uint8_t getBatteryPercentage()
+{
+
+    uint16_t volt = analogReadMilliVolts(BATTERY_MEASUREMENT_PIN) * VOLTAGE_DIVIDER_FACTOR;
+
+    // 1. Clamp the voltage to our known bounds to prevent math errors
+    if (volt > CHARGE_CUTOFF_V)
+        volt = CHARGE_CUTOFF_V;
+    if (volt < DISCHARGE_CUTOFF_V)
+        volt = DISCHARGE_CUTOFF_V;
+
+    // return static_cast<uint8_t>(((volt - DISCHARGE_CUTOFF_V) * 100) / (CHARGE_CUTOFF_V - DISCHARGE_CUTOFF_V));
+    return 9;
+}
+
+// ============================================================
 // POI_CONTROLLER
 // ============================================================
 #include <PoiController.h>
@@ -325,16 +344,28 @@ void setup()
     // Determine wake reason
     // --------------------------------------------------------
 
-    esp_sleep_wakeup_cause_t wakeReason =
-        esp_sleep_get_wakeup_cause();
+    switch (esp_sleep_get_wakeup_cause())
+    {
+    case ESP_SLEEP_WAKEUP_GPIO:
+        Serial.println("Wakeup: Motion");
+        break;
 
-    if (wakeReason == ESP_SLEEP_WAKEUP_GPIO)
+    case ESP_SLEEP_WAKEUP_TIMER:
     {
-        Serial.println("Wakeup: MOTION");
+        if (getBatteryPercentage() < 10)
+        {
+            poi_controller.setMode(POI_MODE::LOW_BATTERY);
+        }
+        else
+        {
+            poi_controller.setMode(POI_MODE::SLEEP);
+        }
     }
-    else
-    {
-        Serial.println("Wakeup: POWER ON / RESET");
+    break;
+
+    default:
+        Serial.println("Wakeup: POWER ON / RESET | DEFAULT");
+        break;
     }
 
     // --------------------------------------------------------
@@ -404,7 +435,10 @@ void setup()
 
     static_assert(LED_UPDATE_MS > 0, "LED_UPDATE_MS must not be 0");
 
-    const uint8_t SRD = (1000 / LED_UPDATE_MS) - 1;
+    const uint8_t SRD = (LED_UPDATE_MS)-1;
+    Serial.print("srd:\t");
+    Serial.println(SRD);
+    delay(2000);
 
     while (!imu.ConfigSrd(SRD))
     {
@@ -449,53 +483,56 @@ void setup()
     Serial.println("Setup complete.");
 }
 
-static int32_t last_accl_asdawd = 0;
+static unsigned long last_imu_data = 0;
 
 void loop()
 {
 
     digitalWrite(STATUS_LED_PIN, LOW);
 
+    static uint32_t latest_accl = 0;
+    static uint32_t latest_gyro = 0;
+
     // --------------------------------------------------------
     // Read IMU
     // --------------------------------------------------------
-
     if (imu.Read())
     {
-
-        // ----------------------------------------------------
-        // LED update
-        // ----------------------------------------------------
-
-        uint32_t now = millis();
-
-        if (
-            now - lastLedUpdate >= LED_UPDATE_MS)
-        {
-            uint32_t dt_ms = now - lastLedUpdate;
-            lastLedUpdate = now;
-            HSV hsv = {255, 255, 255};
-            switch (poi_controller.getMode())
-            {
-            case POI_MODE::ACCELERATION:
-            {
-                uint32_t acceleration = getAbsoluteAcceleration();
-                
-                hsv = poi_controller.tick(acceleration, dt_ms);
-            }
-            break;
-            case POI_MODE::GYRO:
-            {
-                uint32_t radPs = getAbsoluteRadS();
-                
-                hsv = poi_controller.tick(radPs, dt_ms);
-            }
-            break;
-            }
-
-            updateLEDs(hsv);
-        }
+        latest_accl = getAbsoluteAcceleration();
+        latest_gyro = getAbsoluteRadS();
     }
+
+    // ----------------------------------------------------
+    // LED update
+    // ----------------------------------------------------
+
+    uint32_t now = millis();
+    if (
+        now - lastLedUpdate >= LED_UPDATE_MS)
+    {
+
+        uint32_t dt_ms = now - lastLedUpdate;
+        lastLedUpdate = now;
+
+        // Figure out which sensor value the controller cares about right now
+        // (If the mode is LOW_BATTERY or CONSTANT, the controller ignores this value anyway)
+        uint32_t sensor_value = (poi_controller.getMode() == POI_MODE::GYRO)
+                                    ? latest_gyro
+                                    : latest_accl;
+
+        HSV hsv = poi_controller.tick(sensor_value, dt_ms);
+
+        updateLEDs(hsv);
+    }
+    Serial.print("Btry:");
+    Serial.print(getBatteryPercentage());
+    Serial.print(" mode:");
+    Serial.print(poi_controller.getModeStr());
+    Serial.print("\t dt_ms:");
+    Serial.print(now - lastLedUpdate);
+    Serial.print("\t loop:");
+    Serial.println(millis() - last_imu_data);
+    last_imu_data = millis();
 
     // ========================================================
     // BATTERY POWER
@@ -506,21 +543,7 @@ void loop()
     {
         lastUpdate = millis();
 
-        uint16_t volt = analogReadMilliVolts(BATTERY_MEASUREMENT_PIN) * VOLTAGE_DIVIDER_FACTOR;
-
-        // 1. Clamp the voltage to our known bounds to prevent math errors
-        if (volt > CHARGE_CUTOFF_V)
-            volt = CHARGE_CUTOFF_V;
-        if (volt < DISCHARGE_CUTOFF_V)
-            volt = DISCHARGE_CUTOFF_V;
-
-        chargePercentage = ((volt - DISCHARGE_CUTOFF_V) * 100) / (CHARGE_CUTOFF_V - DISCHARGE_CUTOFF_V);
-
-        Serial.print(volt);
-        Serial.print("\t");
-        Serial.println(chargePercentage);
-
-        poi_controller.setBatteryLevel(chargePercentage);
+        poi_controller.setBatteryLevel(getBatteryPercentage());
     }
 
     // ========================================================
