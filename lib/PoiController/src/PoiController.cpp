@@ -1,7 +1,7 @@
 #include <PoiController.h>
 #include <string>
 
-int32_t PoiController::normalize(int32_t value)
+int32_t PoiController::normalize(int32_t value, int32_t value_max_dyn)
 {
     int32_t norm = (value * NORM_SCALE) / value_max_dyn;
 
@@ -33,25 +33,37 @@ HSV PoiController::map_color(const uint32_t value)
         255};
 }
 
-HSV PoiController::acceleration_ani(uint32_t value)
+HSV PoiController::animate(uint32_t max_variable, uint32_t& dynamic_max_variable, uint32_t value)
 {
-
     if (dynamic_max)
     {
-        if (value > VALUE_MAX && value > value_max_dyn)
+        if (value > max_variable && value > dynamic_max_variable)
         {
-            value_max_dyn = value;
+            dynamic_max_variable = value;
         }
-        else if (value_max_dyn > VALUE_MAX)
+        else
         {
-            value_max_dyn -= 10;
+            dynamic_max_variable -= 10;
         }
     }
 
-    uint32_t normalized = normalize(value);
+    uint32_t normalized = normalize(value, dynamic_max_variable);
     uint32_t filtered = filter(normalized);
 
     return map_color(filtered);
+
+}
+
+HSV PoiController::acceleration_ani(uint32_t value)
+{
+    return animate(ACCL_MAX, accl_max_dyn, value);
+}
+
+
+
+HSV PoiController::gyro_ani(uint32_t value)
+{
+    return animate(GYRO_MAX, gyro_max_dyn, value);
 }
 
 void PoiController::setAlpha(uint32_t alpha)

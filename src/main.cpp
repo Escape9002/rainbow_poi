@@ -132,6 +132,8 @@ CRGB leds[NUM_LEDS];
 
 uint32_t MAX_ACCL_MSS = 18000;
 
+uint32_t MAX_GYRO_RADS = 200;
+
 // ============================================================
 // LED UPDATE
 // ============================================================
@@ -205,6 +207,30 @@ uint32_t getAbsoluteAcceleration()
     return movement;
 }
 
+uint32_t getAbsoluteRadS()
+{
+    int32_t ax =
+        (int32_t)(imu.gyro_x_radps() * FP_SCALE);
+
+    int32_t ay =
+        (int32_t)(imu.gyro_y_radps() * FP_SCALE);
+
+    int32_t az =
+        (int32_t)(imu.gyro_z_radps() * FP_SCALE);
+
+    // --------------------------------------------------------
+    // Calculate:
+    //
+    // sqrt(ax^2 + ay^2 + az^2)
+    //
+    // --------------------------------------------------------
+
+    uint64_t sum = (int64_t)ax * ax + (int64_t)ay * ay + (int64_t)az * az;
+    uint32_t magnitude = (uint32_t)sqrt((double)sum);
+
+    return magnitude;
+}
+
 // ============================================================
 // UPDATE LEDS
 // ============================================================
@@ -233,6 +259,7 @@ void updateLEDs(
 ESP32C3SuperMini esp32_c3_superMini = ESP32C3SuperMini(&imu, IMU_INT_PIN);
 PoiController poi_controller = PoiController(
     MAX_ACCL_MSS,
+    MAX_GYRO_RADS,
     FP_SCALE,
     80,
     240,
@@ -435,8 +462,7 @@ void loop()
 
     if (imu.Read())
     {
-        uint32_t acceleration = getAbsoluteAcceleration();
-        
+
         // ----------------------------------------------------
         // LED update
         // ----------------------------------------------------
@@ -448,8 +474,24 @@ void loop()
         {
             uint32_t dt_ms = now - lastLedUpdate;
             lastLedUpdate = now;
-
-            HSV hsv = poi_controller.tick(acceleration, dt_ms);
+            HSV hsv = {255, 255, 255};
+            switch (poi_controller.getMode())
+            {
+            case POI_MODE::ACCELERATION:
+            {
+                uint32_t acceleration = getAbsoluteAcceleration();
+                
+                hsv = poi_controller.tick(acceleration, dt_ms);
+            }
+            break;
+            case POI_MODE::GYRO:
+            {
+                uint32_t radPs = getAbsoluteRadS();
+                
+                hsv = poi_controller.tick(radPs, dt_ms);
+            }
+            break;
+            }
 
             updateLEDs(hsv);
         }
@@ -542,6 +584,8 @@ void loop()
                     // :3
                 }
             }
+
+            endpointCntrlMde.setValue(poi_controller.getModeStr());
             Serial.print(newCntrlMde.c_str());
             Serial.print(poi_controller.getModeStr());
         }
