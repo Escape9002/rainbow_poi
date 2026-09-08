@@ -115,6 +115,9 @@ const char *PoiController::getModeStr()
     case POI_MODE::LOW_BATTERY:
         return "LWBT";
 
+    case POI_MODE::SLEEP:
+        return "SLEEP";
+        
     default:
         return "ERRO";
     }

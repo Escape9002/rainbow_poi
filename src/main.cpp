@@ -50,10 +50,6 @@ bfs::Mpu9250 imu(&Wire, bfs::Mpu9250::I2C_ADDR_PRIM);
 #include <BleEndpoint.h>
 #include "FastLEDEffects.h"
 
-// can/should be toggled to enable BLE during setup sequence.
-// the state is determined by the safety battery check at boot
-bool bleIsSafe = false;
-
 #define BLE_DEVICE_NAME "POI"
 
 #define BLE_SERVICE_UUID \
@@ -304,12 +300,6 @@ void setup()
     Serial.println("==============================");
 
     setCpuFrequencyMhz(80);
-    // --------------------------------------------------------
-    // Safety Check
-    // --------------------------------------------------------
-    // first check battery to determine if BLE should be turned on.
-
-    bleIsSafe = !(getBatteryPercentage() < 10);
 
     // --------------------------------------------------------
     // GPIO
@@ -335,6 +325,7 @@ void setup()
 
     case ESP_SLEEP_WAKEUP_TIMER:
     {
+        
         if (getBatteryPercentage() < 10)
         {
             poi_controller.setMode(POI_MODE::LOW_BATTERY);
@@ -356,7 +347,7 @@ void setup()
     // BLE
     // --------------------------------------------------------
 #if BLE
-    if (bleIsSafe)
+    if (poi_controller.getMode() != POI_MODE::LOW_BATTERY && poi_controller.getMode() != POI_MODE::SLEEP)
     {
 
         Serial.println("Starting BLE...");
@@ -459,11 +450,8 @@ void setup()
     Serial.println("Setup complete.");
 }
 
-static unsigned long last_imu_data = 0;
-
 void loop()
 {
-
     digitalWrite(STATUS_LED_PIN, LOW);
 
     static uint32_t latest_accl = 0;
@@ -497,7 +485,6 @@ void loop()
                                     : latest_accl;
 
         HSV hsv = poi_controller.tick(sensor_value, dt_ms);
-
         updateLEDs(hsv);
     }
 
@@ -518,7 +505,7 @@ void loop()
     // ========================================================
 
 #if BLE
-    if (bleIsSafe)
+    if (poi_controller.getMode() != POI_MODE::LOW_BATTERY && poi_controller.getMode() != POI_MODE::SLEEP)
     {
         // Pusht den neuen Wert per Notify direkt auf das Handy!
         if (chargePercentage != endpointBattery.getValue())
