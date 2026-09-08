@@ -55,7 +55,7 @@ private:
     // --------------------------------------------------------
     // HELPER FUNCTIONS
     // --------------------------------------------------------
-    HSV animate(uint32_t max_variable, uint32_t &dynamic_max_variable, uint32_t value);
+    HSV animate(uint32_t max_variable, uint32_t &dynamic_max_variable, int32_t value);
     int32_t normalize(int32_t value, int32_t value_max);
     uint32_t filter(const uint32_t value);
     HSV map_color(const uint32_t value);
@@ -113,7 +113,7 @@ public:
             idle_time_ms = 0;
         }
 
-        if (idle_time_ms > NO_MOTION_TIMEOUT_MS)
+        if (idle_time_ms > NO_MOTION_TIMEOUT_MS && this->current_mode != POI_MODE::LOW_BATTERY)
         {
             this->current_mode = POI_MODE::SLEEP;
         }

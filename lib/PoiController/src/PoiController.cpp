@@ -33,7 +33,7 @@ HSV PoiController::map_color(const uint32_t value)
         255};
 }
 
-HSV PoiController::animate(uint32_t max_variable, uint32_t& dynamic_max_variable, uint32_t value)
+HSV PoiController::animate(uint32_t max_variable, uint32_t &dynamic_max_variable, int32_t value)
 {
     if (dynamic_max)
     {
@@ -51,15 +51,12 @@ HSV PoiController::animate(uint32_t max_variable, uint32_t& dynamic_max_variable
     uint32_t filtered = filter(normalized);
 
     return map_color(filtered);
-
 }
 
 HSV PoiController::acceleration_ani(uint32_t value)
 {
     return animate(ACCL_MAX, accl_max_dyn, value);
 }
-
-
 
 HSV PoiController::gyro_ani(uint32_t value)
 {
@@ -118,6 +115,9 @@ const char *PoiController::getModeStr()
     case POI_MODE::LOW_BATTERY:
         return "LWBT";
 
+    case POI_MODE::SLEEP:
+        return "SLEEP";
+        
     default:
         return "ERRO";
     }
