@@ -91,15 +91,31 @@ public:
         //
         // Wake when IMU_INT_PIN goes HIGH.
         // --------------------------------------------------------
-        esp_err_t err =
+        esp_err_t err_gpio =
             esp_deep_sleep_enable_gpio_wakeup(
                 1ULL << IMU_INT_PIN,
                 ESP_GPIO_WAKEUP_GPIO_HIGH);
 
-        if (err != ESP_OK)
+        if (err_gpio != ESP_OK)
         {
             Serial.print("Failed to configure GPIO wakeup: ");
-            Serial.println(err);
+            Serial.println(err_gpio);
+            return;
+        }
+
+        // --------------------------------------------------------
+        // Configure ESP32-C3 TIMER wakeup
+        // --------------------------------------------------------
+
+        // 1 day = 24 hours * 60 mins * 60 secs * 1,000,000 microseconds
+        const uint64_t SLEEP_TIME_MS = 86400ULL * 1000000ULL;
+
+        esp_err_t err_timer = esp_sleep_enable_timer_wakeup(SLEEP_TIME_MS);
+
+        if (err_timer != ESP_OK)
+        {
+            Serial.print("Failed to configure timer wakeup: ");
+            Serial.println(err_timer);
             return;
         }
 

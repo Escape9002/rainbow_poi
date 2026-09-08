@@ -24,7 +24,7 @@
 // FastLED
 #define NUM_LEDS 15
 #define DATA_PIN 2
-#define LED_BRIGHTNESS 100
+#define LED_BRIGHTNESS 255
 
 // Status LED
 #define STATUS_LED_PIN 8
@@ -267,8 +267,7 @@ uint8_t getBatteryPercentage()
     if (volt < DISCHARGE_CUTOFF_V)
         volt = DISCHARGE_CUTOFF_V;
 
-    // return static_cast<uint8_t>(((volt - DISCHARGE_CUTOFF_V) * 100) / (CHARGE_CUTOFF_V - DISCHARGE_CUTOFF_V));
-    return 9;
+    return static_cast<uint8_t>(((volt - DISCHARGE_CUTOFF_V) * 100) / (CHARGE_CUTOFF_V - DISCHARGE_CUTOFF_V));
 }
 
 // ============================================================
@@ -310,23 +309,7 @@ void setup()
     // --------------------------------------------------------
     // first check battery to determine if BLE should be turned on.
 
-    uint16_t volt = analogReadMilliVolts(BATTERY_MEASUREMENT_PIN) * VOLTAGE_DIVIDER_FACTOR;
-
-    // 1. Clamp the voltage to our known bounds to prevent math errors
-    if (volt > CHARGE_CUTOFF_V)
-        volt = CHARGE_CUTOFF_V;
-    if (volt < DISCHARGE_CUTOFF_V)
-        volt = DISCHARGE_CUTOFF_V;
-
-    uint16_t chargePercentage = ((volt - DISCHARGE_CUTOFF_V) * 100) / (CHARGE_CUTOFF_V - DISCHARGE_CUTOFF_V);
-    if (chargePercentage < 10)
-    {
-        bleIsSafe = false;
-    }
-    else
-    {
-        bleIsSafe = true;
-    }
+    bleIsSafe = !(getBatteryPercentage() < 10);
 
     // --------------------------------------------------------
     // GPIO
@@ -365,6 +348,7 @@ void setup()
 
     default:
         Serial.println("Wakeup: POWER ON / RESET | DEFAULT");
+
         break;
     }
 
@@ -385,11 +369,6 @@ void setup()
 
         // digital capacitor :3
         delay(250);
-
-        // ble_driver->begin(
-        //     BLE_DEVICE_NAME,
-        //     BLE_SERVICE_UUID,
-        //     BLE_CHAR_UUID);
     }
 
 #endif
@@ -436,9 +415,6 @@ void setup()
     static_assert(LED_UPDATE_MS > 0, "LED_UPDATE_MS must not be 0");
 
     const uint8_t SRD = (LED_UPDATE_MS)-1;
-    Serial.print("srd:\t");
-    Serial.println(SRD);
-    delay(2000);
 
     while (!imu.ConfigSrd(SRD))
     {
@@ -524,15 +500,6 @@ void loop()
 
         updateLEDs(hsv);
     }
-    Serial.print("Btry:");
-    Serial.print(getBatteryPercentage());
-    Serial.print(" mode:");
-    Serial.print(poi_controller.getModeStr());
-    Serial.print("\t dt_ms:");
-    Serial.print(now - lastLedUpdate);
-    Serial.print("\t loop:");
-    Serial.println(millis() - last_imu_data);
-    last_imu_data = millis();
 
     // ========================================================
     // BATTERY POWER
