@@ -272,13 +272,6 @@ uint8_t getBatteryPercentage()
 #include <PoiController.h>
 ESP32C3SuperMini esp32_c3_superMini = ESP32C3SuperMini(&imu, IMU_INT_PIN);
 PoiController poi_controller = PoiController(
-    MAX_ACCL_MSS,
-    MAX_GYRO_RADS,
-    FP_SCALE,
-    80,
-    240,
-    359,
-    true,
     &realEffectEngine,
     &esp32_c3_superMini);
 
@@ -325,14 +318,14 @@ void setup()
 
     case ESP_SLEEP_WAKEUP_TIMER:
     {
-        
+
         if (getBatteryPercentage() < 10)
         {
-            poi_controller.setMode(POI_MODE::LOW_BATTERY);
+            poi_controller.setHardwareState(HARDWARE_STATE::LOW_BATTERY);
         }
         else
         {
-            poi_controller.setMode(POI_MODE::SLEEP);
+            poi_controller.setHardwareState(HARDWARE_STATE::SLEEP);
         }
     }
     break;
@@ -347,7 +340,8 @@ void setup()
     // BLE
     // --------------------------------------------------------
 #if BLE
-    if (poi_controller.getMode() != POI_MODE::LOW_BATTERY && poi_controller.getMode() != POI_MODE::SLEEP)
+    if (
+        poi_controller.getHardwareState() != HARDWARE_STATE::LOW_BATTERY && poi_controller.getHardwareState() != HARDWARE_STATE::SLEEP)
     {
 
         Serial.println("Starting BLE...");
@@ -480,7 +474,7 @@ void loop()
 
         // Figure out which sensor value the controller cares about right now
         // (If the mode is LOW_BATTERY or CONSTANT, the controller ignores this value anyway)
-        uint32_t sensor_value = (poi_controller.getMode() == POI_MODE::GYRO)
+        uint32_t sensor_value = (poi_controller.getAnimationState() == ANIMATION_STATE::GYRO)
                                     ? latest_gyro
                                     : latest_accl;
 
@@ -505,7 +499,7 @@ void loop()
     // ========================================================
 
 #if BLE
-    if (poi_controller.getMode() != POI_MODE::LOW_BATTERY && poi_controller.getMode() != POI_MODE::SLEEP)
+    if (poi_controller.getHardwareState() != HARDWARE_STATE::LOW_BATTERY && poi_controller.getHardwareState() != HARDWARE_STATE::SLEEP)
     {
         // Pusht den neuen Wert per Notify direkt auf das Handy!
         if (chargePercentage != endpointBattery.getValue())
@@ -538,33 +532,11 @@ void loop()
                 poi_controller.setColorRange(poi_controller.getHueMin(), newHueMax);
             }
 
-            std::string newCntrlMde = endpointCntrlMde.getValue();
+            poi_controller.setAnimationState(
+                poi_controller.aniStrToState(
+                    endpointCntrlMde.getValue()));
 
-            if (newCntrlMde != poi_controller.getModeStr())
-            {
-                if (newCntrlMde == "ACCL")
-                {
-                    poi_controller.setMode(POI_MODE::ACCELERATION);
-                }
-                else if (newCntrlMde == "CONS")
-                {
-                    poi_controller.setMode(POI_MODE::CONSTANT);
-                }
-                else if (newCntrlMde == "GYRO")
-                {
-                    poi_controller.setMode(POI_MODE::GYRO);
-                }
-                else
-                {
-                    // the person fucked up. idk how
-                    // the shortenings above are TOTALLY CLEAR
-                    // :3
-                }
-            }
-
-            endpointCntrlMde.setValue(poi_controller.getModeStr());
-            Serial.print(newCntrlMde.c_str());
-            Serial.print(poi_controller.getModeStr());
+            endpointCntrlMde.setValue(poi_controller.getAnimationStateStr());
         }
     }
 
