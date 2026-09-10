@@ -7,6 +7,10 @@
 #include <HAL.h>
 #include "AnimationState/AnimationState.h"
 #include "AnimationState/Acceleration.h"
+#include "AnimationState/Constant.h"
+#include "AnimationState/Gyro.h"
+#include "AnimationState/Rainbow.h"
+#include "AnimationState/Flash.h"
 
 #include "HardwareStates/HardwareState.h"
 #include "HardwareStates/Sleep.h"
@@ -29,10 +33,15 @@ private:
     // --------------------------------------------------------
     // All of these States are controller specific, I dont think the
     // main.c should have to know of any of these.
+    uint32_t NORM_SCALE = 1000;
 
-    AcclAnimationState acclAni = AcclAnimationState(1000, 80, 0, 250, true);
+    AcclAnimationState acclAni;
+    ConstantAnimationState constAni;
+    FlashAnimationState flashAni;
+    GyroAnimationState gyroAni;
+    RainbowAnimationState rainbowAni;
 
-    AnimationState *animState = &acclAni;
+    AnimationState *animState = nullptr;
 
     // --------------------------------------------------------
     // Hardware state vars
@@ -40,12 +49,12 @@ private:
     // All of these States are controller specific, I dont think the
     // main.c should have to know of any of these.
 
-    Sleep sleepState = Sleep(hal, effectEngine);
-    On onState = On(hal, effectEngine);
-    Idle idleState = Idle(hal, effectEngine);
-    LowBattery lowBatteryState = LowBattery(hal, effectEngine);
+    Sleep sleepState;
+    On onState;
+    Idle idleState;
+    LowBattery lowBatteryState;
 
-    HardwareState *hardwareState;
+    HardwareState *hardwareState = nullptr;
 
 public:
     /**
@@ -62,8 +71,21 @@ public:
         EffectEngine *engine,
         HAL *hal)
         : effectEngine(engine),
-          hal(hal)
+          hal(hal),
+          acclAni(NORM_SCALE, 80, 0, 250, true, effectEngine),
+          constAni(NORM_SCALE, 80, 0, 250, true, effectEngine),
+          flashAni(NORM_SCALE, 80, 0, 250, true, effectEngine),
+          gyroAni(NORM_SCALE, 80, 0, 250, true, effectEngine),
+          rainbowAni(NORM_SCALE, 80, 0, 250, true, effectEngine),
+          onState(hal),
+          idleState(hal),
+          lowBatteryState(hal),
+          sleepState(hal),
+          animState(&acclAni),
+          hardwareState(&idleState)
     {
+        animState->onEnter();
+        hardwareState->onEnter();
     }
 
     HSV tick(uint32_t value, uint32_t dt_ms)
@@ -101,7 +123,7 @@ public:
             break;
         default:
             // do nothing default
-            return ;
+            return;
         }
 
         hardwareState->onEnter();
@@ -160,7 +182,7 @@ public:
 
     HARDWARE_STATE hardwareTick(int32_t value, uint32_t dt_ms)
     {
-        return hardwareState->execute(value, dt_ms);
+        return hardwareState->tick(value, dt_ms, batteryPercentage);
     }
 
     void setBatteryLevel(uint8_t newBatteryPercentage)
@@ -201,38 +223,5 @@ public:
     void setDynamicMax(bool state)
     {
         this->animState->setDynamicMax(state);
-    }
-
-    // should this function reside in AnimationState?
-    // how do I grant access to it from the outside?
-    // atm, poiController is the only one, who knows of
-    // AnimationState.h
-    ANIMATION_STATE aniStrToState(std::string letters)
-    {
-        // ensure that we only grab the first 4 letters.
-        letters = letters.substr(0, 4);
-
-        if (letters == "ACCL")
-        {
-            return ANIMATION_STATE::ACCL;
-        }
-        else if (letters == "GYRO")
-        {
-            return ANIMATION_STATE::GYRO;
-        }
-        else if (letters == "CONS")
-        {
-            return ANIMATION_STATE::CONST;
-        }
-        else if (letters == "FLAS")
-        {
-            return ANIMATION_STATE::FLASH;
-        }
-        else if (letters == "RAIN")
-        {
-            return ANIMATION_STATE::RAINBOW;
-        }
-
-        return ANIMATION_STATE::ERROR;
     }
 };

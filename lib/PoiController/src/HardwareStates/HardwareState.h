@@ -2,30 +2,20 @@
 #include "cstdint"
 #include <HAL.h>
 #include <EffectEngine.h>
-
-// would it be safer to use enum classes here?
-// its realistic to run into name conflicts with words like 
-// sleep, idle, etc.
-enum HARDWARE_STATE
-{
-    SLEEP,
-    IDLE,
-    ON,
-    LOW_BATTERY
-
-};
+#include <HardwareStates/HardwareStates.h>
 
 class HardwareState
 {
 protected:
     uint32_t accumulated_time = 0;
     HAL *hal;
-    EffectEngine *engine;
 
-    
+    static const uint8_t LOW_BATTERY = 10;
+
+    virtual HARDWARE_STATE execute(uint32_t value, uint32_t dt_ms) = 0;
 
 public:
-    HardwareState(HAL *hal, EffectEngine *engine) : hal(hal), engine(engine)
+    HardwareState(HAL *hal) : hal(hal)
     {
     }
 
@@ -40,7 +30,18 @@ public:
      *
      * @param value ensure that this value is normalized, such that theres no difference between different sensors.
      * @param dt_ms time since last call/ loop
+     * @param batteryPercentage always check the battery percentage before calling the normal hardware checks
      */
-    virtual HARDWARE_STATE execute(uint32_t value, uint32_t dt_ms) = 0;
+    HARDWARE_STATE tick(uint32_t value, uint32_t dt_ms, uint8_t batteryPercentage)
+    {
+
+        if (batteryPercentage < LOW_BATTERY)
+        {
+            return HARDWARE_STATE::LOW_BATTERY;
+        }
+
+        execute(value, dt_ms);
+    }
+
     virtual HARDWARE_STATE getState() = 0;
 };

@@ -9,7 +9,7 @@ private:
     static constexpr uint32_t DEADZONE = 1000;
 
 public:
-    Idle(HAL *hal, EffectEngine *engine) : HardwareState(hal, engine) {}
+    Idle(HAL *hal) : HardwareState(hal) {}
 
     HARDWARE_STATE execute(uint32_t value, uint32_t dt_ms) override
     {
@@ -28,7 +28,7 @@ public:
         return HARDWARE_STATE::IDLE;
     }
 
-    HARDWARE_STATE getState() override{
+    HARDWARE_STATE getState() override {
         return HARDWARE_STATE::IDLE;
     }
 };

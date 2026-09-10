@@ -1,17 +1,17 @@
 #pragma once
 #include <AnimationState/AnimationState.h>
 
-class AcclAnimationState : public AnimationState
+class GyroAnimationState : public AnimationState
 {
 private:
     uint32_t intro_timer_ms = 0;
     const uint32_t INTRO_DURATION = 500;
 
-    const uint32_t max_accl = 18000;
-    uint32_t dynamic_max_var = max_accl;
+    const uint32_t max_gyro = 500;
+    uint32_t dynamic_max_var = max_gyro;
 
 public:
-    AcclAnimationState(uint32_t norm_scale,
+    GyroAnimationState(uint32_t norm_scale,
                        uint32_t alpha,
                        uint16_t hueMin,
                        uint16_t hueMax,
@@ -24,7 +24,7 @@ public:
     void onEnter() override
     {
         intro_timer_ms = INTRO_DURATION;
-        dynamic_max_var = max_accl;
+        dynamic_max_var = max_gyro;
     }
 
     HSV tick(uint32_t absAccl, uint32_t dt_ms, EffectEngine *effectEngine) override
@@ -39,10 +39,10 @@ public:
             return effectEngine->flash(HSV{255, 255, 255}, 100);
         }
 
-        return animate(max_accl, dynamic_max_var, absAccl);
+        return animate(max_gyro, dynamic_max_var, absAccl);
     }
 
-    void setMaxAccl(uint32_t absAccl)
+    void setMaxGyro(uint32_t absAccl)
     {
         dynamic_max_var = absAccl;
         dynamic_max = true;
@@ -50,6 +50,6 @@ public:
 
     ANIMATION_STATE getState() override
     {
-        return ANIMATION_STATE::ACCL;
+        return ANIMATION_STATE::GYRO;
     }
 };

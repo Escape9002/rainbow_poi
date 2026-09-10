@@ -6,7 +6,7 @@ class LowBattery : public HardwareState
 {
 private:
 public:
-    LowBattery(HAL *hal, EffectEngine *engine) : HardwareState(hal, engine) {}
+    LowBattery(HAL *hal) : HardwareState(hal) {}
 
     HARDWARE_STATE execute(uint32_t value, uint32_t dt_ms) override
     {

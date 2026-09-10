@@ -533,8 +533,8 @@ void loop()
             }
 
             poi_controller.setAnimationState(
-                poi_controller.aniStrToState(
-                    endpointCntrlMde.getValue()));
+                animationStringToState(
+                    endpointCntrlMde.getValue().c_str()));
 
             endpointCntrlMde.setValue(poi_controller.getAnimationStateStr());
         }

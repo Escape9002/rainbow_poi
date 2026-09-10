@@ -8,7 +8,7 @@ private:
     static constexpr uint32_t DEADZONE = 1000;
 
 public:
-    On(HAL *hal, EffectEngine *engine) : HardwareState(hal, engine) {}
+    On(HAL *hal) : HardwareState(hal) {}
 
     HARDWARE_STATE execute(uint32_t value, uint32_t dt_ms) override
     {

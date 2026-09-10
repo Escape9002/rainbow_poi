@@ -2,16 +2,7 @@
 #include <HSV.h>
 #include <EffectEngine.h>
 #include <LowPass.h>
-
-enum ANIMATION_STATE
-{
-    GYRO,
-    ACCL,
-    FLASH,
-    CONST,
-    RAINBOW,
-    ERROR
-};
+#include "AnimationStates.h"
 
 class AnimationState
 {
@@ -20,6 +11,8 @@ protected:
     LowPassFilter<uint32_t> lPass;
     HSV hsv;
     uint16_t hueMin, hueMax;
+
+    EffectEngine *engine;
 
     bool dynamic_max = false;
 
@@ -33,12 +26,14 @@ public:
                    uint32_t alpha,
                    uint16_t hueMin,
                    uint16_t hueMax,
-                   bool dynamic_max)
+                   bool dynamic_max,
+                   EffectEngine *engine)
         : NORM_SCALE(norm_scale),
           lPass(alpha),
           hueMin(hueMin),
           hueMax(hueMax),
-          dynamic_max(dynamic_max)
+          dynamic_max(dynamic_max),
+          engine(engine)
     {
         hsv = {255, 255, 255};
     }
@@ -121,6 +116,4 @@ public:
     {
         dynamic_max = state;
     }
-
-    
 };
