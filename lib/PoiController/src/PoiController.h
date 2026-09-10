@@ -222,58 +222,159 @@ public:
     /// > Jede Ebene muss etwas tun, sonst schlechtes Design?
     //////////////////////////////////////////////////////////
 
-    AnimationState *getAnimator()
-    {
-        switch (animState)
-        {
-        case ANIMATION_STATE::ACCL:
-            return &acclAni;
-        case ANIMATION_STATE::GYRO:
-            return &gyroAni;
-        case ANIMATION_STATE::CONST:
-            return &constAni;
-        case ANIMATION_STATE::FLASH:
-            return &flashAni;
-        case ANIMATION_STATE::RAINBOW:
-            return &rainbowAni;
-        }
-
-        __builtin_unreachable();
-    }
-
     void setAlpha(uint32_t alpha)
     {
 
-        getAnimator()->setAlpha(alpha);
-        
-        
+        switch (animState)
+        {
+        case ANIMATION_STATE::ACCL:
+            acclAni.setAlpha(alpha);
+            break;
+
+        case ANIMATION_STATE::CONST:
+            constAni.setAlpha(alpha);
+            break;
+
+        case ANIMATION_STATE::FLASH:
+            flashAni.setAlpha(alpha);
+            break;
+
+        case ANIMATION_STATE::GYRO:
+            gyroAni.setAlpha(alpha);
+            break;
+
+        case ANIMATION_STATE::RAINBOW:
+            rainbowAni.setAlpha(alpha);
+            break;
+        }
     }
 
     uint32_t getAlpha()
     {
-        return getAnimator()->getAlpha();
-        
+        switch (animState)
+        {
+        case ANIMATION_STATE::ACCL:
+            return acclAni.getAlpha();
+            break;
+
+        case ANIMATION_STATE::CONST:
+            return constAni.getAlpha();
+            break;
+
+        case ANIMATION_STATE::FLASH:
+            return flashAni.getAlpha();
+            break;
+
+        case ANIMATION_STATE::GYRO:
+            return gyroAni.getAlpha();
+            break;
+
+        case ANIMATION_STATE::RAINBOW:
+            return rainbowAni.getAlpha();
+            break;
+        }
     }
 
     void setColorRange(uint32_t min, uint32_t max)
     {
-        getAnimator()->setColorRange(min, max);
-          
+        switch (animState)
+        {
+        case ANIMATION_STATE::ACCL:
+            acclAni.setColorRange(min, max);
+            break;
+
+        case ANIMATION_STATE::CONST:
+            constAni.setColorRange(min, max);
+            break;
+
+        case ANIMATION_STATE::FLASH:
+            flashAni.setColorRange(min, max);
+            break;
+
+        case ANIMATION_STATE::GYRO:
+            gyroAni.setColorRange(min, max);
+            break;
+
+        case ANIMATION_STATE::RAINBOW:
+            rainbowAni.setColorRange(min, max);
+            break;
+        }
     }
 
     uint32_t getHueMin()
     {
-        return getAnimator()->getHueMin();
-             
+        switch (animState)
+        {
+        case ANIMATION_STATE::ACCL:
+            acclAni.getHueMin();
+            break;
+
+        case ANIMATION_STATE::CONST:
+            constAni.getHueMin();
+            break;
+
+        case ANIMATION_STATE::FLASH:
+            flashAni.getHueMin();
+            break;
+
+        case ANIMATION_STATE::GYRO:
+            gyroAni.getHueMin();
+            break;
+
+        case ANIMATION_STATE::RAINBOW:
+            rainbowAni.getHueMin();
+            break;
+        }
     }
     uint32_t getHueMax()
     {
-        return getAnimator()->getHueMax();
-        
+        switch (animState)
+        {
+        case ANIMATION_STATE::ACCL:
+            acclAni.getHueMax();
+            break;
+
+        case ANIMATION_STATE::CONST:
+            constAni.getHueMax();
+            break;
+
+        case ANIMATION_STATE::FLASH:
+            flashAni.getHueMax();
+            break;
+
+        case ANIMATION_STATE::GYRO:
+            gyroAni.getHueMax();
+            break;
+
+        case ANIMATION_STATE::RAINBOW:
+            rainbowAni.getHueMax();
+            break;
+        }
     }
 
     void setDynamicMax(bool state)
     {
-        getAnimator()->setDynamicMax(state);
-  }
+        switch (animState)
+        {
+        case ANIMATION_STATE::ACCL:
+            acclAni.setDynamicMax(state);
+            break;
+
+        case ANIMATION_STATE::CONST:
+            constAni.setDynamicMax(state);
+            break;
+
+        case ANIMATION_STATE::FLASH:
+            flashAni.setDynamicMax(state);
+            break;
+
+        case ANIMATION_STATE::GYRO:
+            gyroAni.setDynamicMax(state);
+            break;
+
+        case ANIMATION_STATE::RAINBOW:
+            rainbowAni.setDynamicMax(state);
+            break;
+        }
+    }
 };
