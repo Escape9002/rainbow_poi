@@ -307,6 +307,14 @@ void setup()
     digitalWrite(STATUS_LED_PIN, LOW);
 
     // --------------------------------------------------------
+    // Check battery levels and report to controller
+    // --------------------------------------------------------
+    // the controller must do a tick to update its hardware states!
+    // otherwise the default values persist!
+    poi_controller.setBatteryLevel(getBatteryPercentage());
+    poi_controller.hardwareTick(0, 0);
+
+    // --------------------------------------------------------
     // Determine wake reason
     // --------------------------------------------------------
 
@@ -317,18 +325,12 @@ void setup()
         break;
 
     case ESP_SLEEP_WAKEUP_TIMER:
-    {
 
-        if (getBatteryPercentage() < 10)
-        {
-            poi_controller.setHardwareState(HARDWARE_STATE::LOW_BATTERY);
-        }
-        else
-        {
-            poi_controller.setHardwareState(HARDWARE_STATE::SLEEP);
-        }
-    }
-    break;
+        // we should check the battery and return to sleep if the charge is high enough.
+        // otherwise we should start flashing red.
+        // this should be handled by the battery check at the start of the setup function
+
+        break;
 
     default:
         Serial.println("Wakeup: POWER ON / RESET | DEFAULT");
@@ -536,7 +538,7 @@ void loop()
                 animationStringToState(
                     endpointCntrlMde.getValue().c_str()));
 
-            endpointCntrlMde.setValue(poi_controller.getAnimationStateStr());
+            endpointCntrlMde.setValue(toString(poi_controller.getAnimationState()));
         }
     }
 

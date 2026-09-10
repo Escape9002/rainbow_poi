@@ -24,8 +24,8 @@ private:
     // --------------------------------------------------------
     // Normal Vars
     // --------------------------------------------------------
-    EffectEngine *effectEngine;
-    HAL *hal;
+    EffectEngine &effectEngine;
+    HAL &hal;
     uint8_t batteryPercentage = 100;
 
     // --------------------------------------------------------
@@ -41,7 +41,7 @@ private:
     GyroAnimationState gyroAni;
     RainbowAnimationState rainbowAni;
 
-    AnimationState *animState = nullptr;
+    ANIMATION_STATE animState = ANIMATION_STATE::ACCL;
 
     // --------------------------------------------------------
     // Hardware state vars
@@ -54,7 +54,7 @@ private:
     Idle idleState;
     LowBattery lowBatteryState;
 
-    HardwareState *hardwareState = nullptr;
+    HARDWARE_STATE hardwareState = HARDWARE_STATE::IDLE;
 
 public:
     /**
@@ -70,119 +70,144 @@ public:
     PoiController(
         EffectEngine &engine,
         HAL &hal)
-        : effectEngine(&engine),
-          hal(&hal),
-          acclAni(NORM_SCALE, 80, 0, 250, true, effectEngine),
-          constAni(NORM_SCALE, 80, 0, 250, true, effectEngine),
-          flashAni(NORM_SCALE, 80, 0, 250, true, effectEngine),
-          gyroAni(NORM_SCALE, 80, 0, 250, true, effectEngine),
-          rainbowAni(NORM_SCALE, 80, 0, 250, true, effectEngine),
+        : effectEngine(engine),
+          hal(hal),
+          acclAni(NORM_SCALE, 80, 0, 250, true, &effectEngine),
+          constAni(NORM_SCALE, 80, 0, 250, true, &effectEngine),
+          flashAni(NORM_SCALE, 80, 0, 250, true, &effectEngine),
+          gyroAni(NORM_SCALE, 80, 0, 250, true, &effectEngine),
+          rainbowAni(NORM_SCALE, 80, 0, 250, true, &effectEngine),
           onState(&hal),
           idleState(&hal),
           lowBatteryState(&hal),
-          sleepState(&hal),
-          animState(&acclAni),
-          hardwareState(&idleState)
+          sleepState(&hal)
     {
-        animState->onEnter();
-        hardwareState->onEnter();
+        enterAnimationState();
+        enterHardwareState();
+    }
+
+    void enterAnimationState()
+    {
+        switch (animState)
+        {
+        case ANIMATION_STATE::ACCL:
+            acclAni.onEnter();
+            break;
+
+        case ANIMATION_STATE::CONST:
+            constAni.onEnter();
+            break;
+
+        case ANIMATION_STATE::FLASH:
+            flashAni.onEnter();
+            break;
+
+        case ANIMATION_STATE::GYRO:
+            gyroAni.onEnter();
+            break;
+
+        case ANIMATION_STATE::RAINBOW:
+            rainbowAni.onEnter();
+            break;
+        }
+    }
+
+    void enterHardwareState()
+    {
+        switch (hardwareState)
+        {
+        case HARDWARE_STATE::IDLE:
+            idleState.onEnter();
+            break;
+
+        case HARDWARE_STATE::ON:
+            onState.onEnter();
+            break;
+
+        case HARDWARE_STATE::SLEEP:
+            sleepState.onEnter();
+            break;
+
+        case HARDWARE_STATE::LOW_BATTERY:
+            lowBatteryState.onEnter();
+            break;
+        }
     }
 
     HSV tick(uint32_t value, uint32_t dt_ms)
     {
-        HARDWARE_STATE newState = hardwareTick(value, dt_ms);
-        if (newState != hardwareState->getState())
-        {
-            setHardwareState(newState);
-        }
+        hardwareTick(value, dt_ms);
 
         return animationTick(value, dt_ms);
     }
 
-    void setHardwareState(HARDWARE_STATE newState)
-    {
-        if (newState == hardwareState->getState())
-        {
-            // early return if now hardware state change happened
-            return;
-        }
-
-        switch (newState)
-        {
-        case HARDWARE_STATE::IDLE:
-            hardwareState = &idleState;
-            break;
-        case HARDWARE_STATE::LOW_BATTERY:
-            hardwareState = &lowBatteryState;
-            break;
-        case HARDWARE_STATE::ON:
-            hardwareState = &onState;
-            break;
-        case HARDWARE_STATE::SLEEP:
-            hardwareState = &sleepState;
-            break;
-        default:
-            // do nothing default
-            return;
-        }
-
-        hardwareState->onEnter();
-    }
-
     HARDWARE_STATE getHardwareState()
     {
-        return hardwareState->getState();
-    }
-
-    void setAnimationState(ANIMATION_STATE newState)
-    {
-        if (animState->getState() == newState || newState == ANIMATION_STATE::ERROR)
-        {
-            // early return if no state change happens or an error was received
-            return;
-        }
-
-        switch (newState)
-        {
-        case ANIMATION_STATE::ACCL:
-            animState = &acclAni;
-            break;
-
-        case ANIMATION_STATE::ERROR:
-        default:
-            animState = &acclAni;
-            break;
-        }
-
-        animState->onEnter();
+        return hardwareState;
     }
 
     ANIMATION_STATE getAnimationState()
     {
-        return animState->getState();
+        return animState;
     }
 
-    std::string getAnimationStateStr()
+    void setAnimationState(ANIMATION_STATE newState)
     {
-        switch (animState->getState())
+        animState = newState;
+        enterAnimationState();
+    }
+
+    HSV animationTick(uint32_t value, uint32_t dt_ms)
+    {
+        switch (animState)
         {
         case ANIMATION_STATE::ACCL:
-            return "ACCL";
+            return acclAni.tick(value, dt_ms, &effectEngine);
+
+        case ANIMATION_STATE::CONST:
+            return constAni.tick(value, dt_ms, &effectEngine);
+
+        case ANIMATION_STATE::FLASH:
+            return flashAni.tick(value, dt_ms, &effectEngine);
+
+        case ANIMATION_STATE::GYRO:
+            return gyroAni.tick(value, dt_ms, &effectEngine);
+
+        case ANIMATION_STATE::RAINBOW:
+            return rainbowAni.tick(value, dt_ms, &effectEngine);
+        }
+
+        __builtin_unreachable();
+    }
+
+    void hardwareTick(int32_t value, uint32_t dt_ms)
+    {
+        HARDWARE_STATE newState;
+
+        switch (hardwareState)
+        {
+        case HARDWARE_STATE::IDLE:
+            newState = idleState.execute(value, dt_ms);
             break;
 
-        default:
+        case HARDWARE_STATE::ON:
+            newState = onState.execute(value, dt_ms);
+            break;
+
+        case HARDWARE_STATE::SLEEP:
+            newState = sleepState.execute(value, dt_ms);
+            break;
+
+        case HARDWARE_STATE::LOW_BATTERY:
+            newState = lowBatteryState.execute(value, dt_ms);
             break;
         }
-    }
 
-    HSV animationTick(uint32_t abs_value, uint32_t dt_ms)
-    {
-        return animState->tick(abs_value, dt_ms, effectEngine);
-    }
-
-    HARDWARE_STATE hardwareTick(int32_t value, uint32_t dt_ms)
-    {
-        return hardwareState->tick(value, dt_ms, batteryPercentage);
+        if (newState != hardwareState)
+        {
+            hardwareState = newState;
+            enterHardwareState();
+        }
     }
 
     void setBatteryLevel(uint8_t newBatteryPercentage)
@@ -197,31 +222,58 @@ public:
     /// > Jede Ebene muss etwas tun, sonst schlechtes Design?
     //////////////////////////////////////////////////////////
 
+    AnimationState *getAnimator()
+    {
+        switch (animState)
+        {
+        case ANIMATION_STATE::ACCL:
+            return &acclAni;
+        case ANIMATION_STATE::GYRO:
+            return &gyroAni;
+        case ANIMATION_STATE::CONST:
+            return &constAni;
+        case ANIMATION_STATE::FLASH:
+            return &flashAni;
+        case ANIMATION_STATE::RAINBOW:
+            return &rainbowAni;
+        }
+
+        __builtin_unreachable();
+    }
+
     void setAlpha(uint32_t alpha)
     {
-        this->animState->setAlpha(alpha);
+
+        getAnimator()->setAlpha(alpha);
+        
+        
     }
 
     uint32_t getAlpha()
     {
-        return this->animState->getAlpha();
+        return getAnimator()->getAlpha();
+        
     }
 
     void setColorRange(uint32_t min, uint32_t max)
     {
-        this->animState->setColorRange(min, max);
+        getAnimator()->setColorRange(min, max);
+          
     }
+
     uint32_t getHueMin()
     {
-        return this->animState->getHueMin();
+        return getAnimator()->getHueMin();
+             
     }
     uint32_t getHueMax()
     {
-        return this->animState->getHueMax();
+        return getAnimator()->getHueMax();
+        
     }
 
     void setDynamicMax(bool state)
     {
-        this->animState->setDynamicMax(state);
-    }
+        getAnimator()->setDynamicMax(state);
+  }
 };
