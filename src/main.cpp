@@ -272,8 +272,8 @@ uint8_t getBatteryPercentage()
 #include <PoiController.h>
 ESP32C3SuperMini esp32_c3_superMini = ESP32C3SuperMini(&imu, IMU_INT_PIN);
 PoiController poi_controller = PoiController(
-    &realEffectEngine,
-    &esp32_c3_superMini);
+    realEffectEngine,
+    esp32_c3_superMini);
 
 // ============================================================
 // SETUP

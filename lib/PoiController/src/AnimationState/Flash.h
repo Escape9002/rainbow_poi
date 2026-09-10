@@ -5,7 +5,7 @@ class FlashAnimationState : public AnimationState
 {
 private:
     HSV hsv = HSV{255, 255, 255};
-    const uint8_t INTERVAL = 500;
+    const uint16_t INTERVAL = 500;
 
 public:
     FlashAnimationState(uint32_t norm_scale,

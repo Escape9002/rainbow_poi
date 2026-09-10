@@ -68,19 +68,19 @@ public:
      * @param dynamic_max enable dynamic maximum acceleration
      */
     PoiController(
-        EffectEngine *engine,
-        HAL *hal)
-        : effectEngine(engine),
-          hal(hal),
+        EffectEngine &engine,
+        HAL &hal)
+        : effectEngine(&engine),
+          hal(&hal),
           acclAni(NORM_SCALE, 80, 0, 250, true, effectEngine),
           constAni(NORM_SCALE, 80, 0, 250, true, effectEngine),
           flashAni(NORM_SCALE, 80, 0, 250, true, effectEngine),
           gyroAni(NORM_SCALE, 80, 0, 250, true, effectEngine),
           rainbowAni(NORM_SCALE, 80, 0, 250, true, effectEngine),
-          onState(hal),
-          idleState(hal),
-          lowBatteryState(hal),
-          sleepState(hal),
+          onState(&hal),
+          idleState(&hal),
+          lowBatteryState(&hal),
+          sleepState(&hal),
           animState(&acclAni),
           hardwareState(&idleState)
     {
