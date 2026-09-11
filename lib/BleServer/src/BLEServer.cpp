@@ -22,7 +22,7 @@ void BleServer::begin(const char* deviceName, std::initializer_list<BleEndpointB
 
     // 2. Initialize NimBLE stack
     NimBLEDevice::init(deviceName);
-    NimBLEDevice::setPower(9);
+    NimBLEDevice::setPower(3);
 
     NimBLEServer* pServer = NimBLEDevice::createServer();
     pServer->setCallbacks(new ServerCallbacks());
