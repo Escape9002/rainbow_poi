@@ -123,6 +123,47 @@ private:
         }
     }
 
+public:
+    /**
+     * @brief Construct a new Poi Controller object
+     *
+     * @param accl_max maximum accleration
+     * @param norm_scale scale on which to operate concerning float to fix-point
+     * @param alpha lowPass alpha
+     * @param min hueMin
+     * @param max hueMax
+     * @param dynamic_max enable dynamic maximum acceleration
+     */
+    PoiController(
+        EffectEngine &engine,
+        HAL &hal)
+        : effectEngine(engine),
+          hal(hal),
+          acclAni(NORM_SCALE, 80, 0, 250, true, &effectEngine),
+          constAni(NORM_SCALE, 80, 0, 250, true, &effectEngine),
+          flashAni(NORM_SCALE, 80, 0, 250, true, &effectEngine),
+          gyroAni(NORM_SCALE, 80, 0, 250, true, &effectEngine),
+          rainbowAni(NORM_SCALE, 80, 0, 250, true, &effectEngine),
+          onState(&hal),
+          idleState(&hal),
+          lowBatteryState(&hal),
+          sleepState(&hal)
+    {
+        enterAnimationState();
+        enterHardwareState();
+    }
+
+    // --------------------------------------------------------
+    // general tick for outside world
+    // --------------------------------------------------------
+
+    HSV tick(uint32_t value, uint32_t dt_ms)
+    {
+        hardwareTick(value, dt_ms);
+
+        return animationTick(value, dt_ms);
+    }
+
     // --------------------------------------------------------
     // dedicated Tick functions
     // --------------------------------------------------------
@@ -170,7 +211,8 @@ private:
 
         case HARDWARE_STATE::LOW_BATTERY:
             // if we are low on battery, we should flash red!
-            if (animState != ANIMATION_STATE::FLASH){
+            if (animState != ANIMATION_STATE::FLASH)
+            {
                 setAnimationState(ANIMATION_STATE::FLASH);
             }
             newState = lowBatteryState.tick(value, dt_ms, batteryPercentage);
@@ -182,47 +224,6 @@ private:
             hardwareState = newState;
             enterHardwareState();
         }
-    }
-
-public:
-    /**
-     * @brief Construct a new Poi Controller object
-     *
-     * @param accl_max maximum accleration
-     * @param norm_scale scale on which to operate concerning float to fix-point
-     * @param alpha lowPass alpha
-     * @param min hueMin
-     * @param max hueMax
-     * @param dynamic_max enable dynamic maximum acceleration
-     */
-    PoiController(
-        EffectEngine &engine,
-        HAL &hal)
-        : effectEngine(engine),
-          hal(hal),
-          acclAni(NORM_SCALE, 80, 0, 250, true, &effectEngine),
-          constAni(NORM_SCALE, 80, 0, 250, true, &effectEngine),
-          flashAni(NORM_SCALE, 80, 0, 250, true, &effectEngine),
-          gyroAni(NORM_SCALE, 80, 0, 250, true, &effectEngine),
-          rainbowAni(NORM_SCALE, 80, 0, 250, true, &effectEngine),
-          onState(&hal),
-          idleState(&hal),
-          lowBatteryState(&hal),
-          sleepState(&hal)
-    {
-        enterAnimationState();
-        enterHardwareState();
-    }
-
-    // --------------------------------------------------------
-    // general tick for outside world
-    // --------------------------------------------------------
-
-    HSV tick(uint32_t value, uint32_t dt_ms)
-    {
-        hardwareTick(value, dt_ms);
-
-        return animationTick(value, dt_ms);
     }
 
     // --------------------------------------------------------

@@ -24,7 +24,7 @@
 // FastLED
 #define NUM_LEDS 15
 #define DATA_PIN 2
-#define LED_BRIGHTNESS 255
+#define LED_BRIGHTNESS 20
 
 // Status LED
 #define STATUS_LED_PIN 8
@@ -297,7 +297,7 @@ void setup()
     // --------------------------------------------------------
     // GPIO
     // --------------------------------------------------------
-
+    Serial.println("1");
     pinMode(IMU_INT_PIN, INPUT_PULLDOWN);
 
     pinMode(STATUS_LED_PIN, OUTPUT);
@@ -311,9 +311,13 @@ void setup()
     // --------------------------------------------------------
     // the controller must do a tick to update its hardware states!
     // otherwise the default values persist!
+    Serial.println("2");
     poi_controller.setBatteryLevel(getBatteryPercentage());
-    poi_controller.tick(0, 0);
 
+    // ! DO NOT DO AN ANIMATION TICK YET, THE FastLED -> effectEngine isnt initialized yet.
+Serial.println("3");
+    // poi_controller.hardwareTick(0, 0);
+Serial.println("4");
     // --------------------------------------------------------
     // Determine wake reason
     // --------------------------------------------------------
