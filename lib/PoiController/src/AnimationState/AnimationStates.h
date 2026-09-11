@@ -40,7 +40,7 @@ const char* toString(ANIMATION_STATE state)
 // how do I grant access to it from the outside?
 // atm, poiController is the only one, who knows of
 // AnimationState.h
-ANIMATION_STATE animationStringToState(const char* letters)
+ANIMATION_STATE animationStringToState(const std::string& letters)
 {
     // ensure that we only grab the first 4 letters.
     if (letters == "ACCL")
@@ -64,5 +64,5 @@ ANIMATION_STATE animationStringToState(const char* letters)
         return ANIMATION_STATE::RAINBOW;
     }
 
-    return ANIMATION_STATE::ERROR;
+    return ANIMATION_STATE::CONST;
 }

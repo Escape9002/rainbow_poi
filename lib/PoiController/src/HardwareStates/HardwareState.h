@@ -40,7 +40,7 @@ public:
             return HARDWARE_STATE::LOW_BATTERY;
         }
 
-        execute(value, dt_ms);
+        return execute(value, dt_ms);
     }
 
     virtual HARDWARE_STATE getState() = 0;

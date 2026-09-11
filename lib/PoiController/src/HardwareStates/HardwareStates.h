@@ -28,7 +28,7 @@ const char* toString(HARDWARE_STATE state)
     }
 }
 
-HARDWARE_STATE HardwareStateFromString(const char* str)
+HARDWARE_STATE HardwareStateFromString(const std::string& str)
 {
     if (str == "SLEEP")
         return HARDWARE_STATE::SLEEP;

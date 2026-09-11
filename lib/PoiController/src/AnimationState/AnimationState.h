@@ -77,7 +77,7 @@ public:
             {
                 dynamic_max_variable = value;
             }
-            else
+            else if((dynamic_max_variable - 9) > max_variable)
             {
                 dynamic_max_variable -= 10;
             }
