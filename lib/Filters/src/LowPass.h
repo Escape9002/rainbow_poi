@@ -41,23 +41,6 @@ public:
         setAlpha(alpha);
     }
 
-    // T filter(T input)
-    // {
-    //     if (!initialized)
-    //     {
-    //         previous = input;
-    //         initialized = true;
-    //         return previous;
-    //     }
-
-    //     CalcType error = static_cast<CalcType>(input) - static_cast<CalcType>(previous);
-    //     CalcType correction = (alpha * error) / FILTER_SCALE;
-
-    //     previous = static_cast<T>(static_cast<CalcType>(previous) + correction);
-
-    //     return previous;
-    // }
-
     T filter(T input)
     {
         if (!initialized)
@@ -86,7 +69,7 @@ public:
     {
         if (alpha > FILTER_SCALE)
         {
-            alpha = FILTER_SCALE;
+            this->alpha = FILTER_SCALE;
         }
         this->alpha = alpha;
     }
