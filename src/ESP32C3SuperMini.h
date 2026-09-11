@@ -7,6 +7,7 @@
 #include "esp_sleep.h"
 #include <driver/gpio.h>
 #include "FastLED.h"
+#include "NimBLEDevice.h"
 
 class ESP32C3SuperMini : public HAL
 {
@@ -118,6 +119,11 @@ public:
             Serial.println(err_timer);
             return;
         }
+
+        Serial.println("Shutting down BLE...");
+        NimBLEDevice::deinit(true); // <--- This completely powers off the BT hardware and frees memory!
+        
+        delay(50);
 
         // --------------------------------------------------------
         // Sleep

@@ -278,11 +278,11 @@ public:
         getAnimator()->setColorRange(min, max);
     }
 
-    uint32_t getHueMin()
+    uint16_t getHueMin()
     {
         return getAnimator()->getHueMin();
     }
-    uint32_t getHueMax()
+    uint16_t getHueMax()
     {
         return getAnimator()->getHueMax();
     }
