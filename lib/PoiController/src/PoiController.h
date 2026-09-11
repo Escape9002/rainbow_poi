@@ -70,9 +70,9 @@ private:
             return &flashAni;
         case ANIMATION_STATE::RAINBOW:
             return &rainbowAni;
+        default:
+            return &flashAni; // save default if switch fails
         }
-
-        __builtin_unreachable();
     }
 
     void enterAnimationState()
@@ -98,6 +98,8 @@ private:
         case ANIMATION_STATE::RAINBOW:
             rainbowAni.onEnter();
             break;
+        default:
+            return;
         }
     }
 
@@ -139,15 +141,18 @@ public:
         HAL &hal)
         : effectEngine(engine),
           hal(hal),
-          acclAni(NORM_SCALE, 80, 0, 250, true, &effectEngine),
+
+          acclAni(NORM_SCALE, 80, 200, 359, true, &effectEngine),
+          gyroAni(NORM_SCALE, 80, 0, 225, true, &effectEngine),
           constAni(NORM_SCALE, 80, 0, 250, true, &effectEngine),
           flashAni(NORM_SCALE, 80, 0, 250, true, &effectEngine),
-          gyroAni(NORM_SCALE, 80, 0, 250, true, &effectEngine),
           rainbowAni(NORM_SCALE, 80, 0, 250, true, &effectEngine),
+
           onState(&hal),
           idleState(&hal),
           lowBatteryState(&hal),
           sleepState(&hal)
+
     {
         enterAnimationState();
         enterHardwareState();
@@ -186,9 +191,10 @@ public:
 
         case ANIMATION_STATE::RAINBOW:
             return rainbowAni.tick(value, dt_ms, &effectEngine);
-        }
 
-        __builtin_unreachable();
+        default:
+            return acclAni.tick(value, dt_ms, &effectEngine);
+        }
     }
 
     void hardwareTick(int32_t value, uint32_t dt_ms)
@@ -249,6 +255,11 @@ public:
     void setBatteryLevel(uint8_t newBatteryPercentage)
     {
         batteryPercentage = newBatteryPercentage;
+    }
+
+    uint8_t getBatteryLevel()
+    {
+        return batteryPercentage;
     }
 
     void setAlpha(uint32_t alpha)

@@ -7,7 +7,7 @@ private:
     uint32_t intro_timer_ms = 0;
     const uint32_t INTRO_DURATION = 500;
 
-    const uint32_t max_gyro = 500;
+    const uint32_t max_gyro = 500; // make full use of dynamic_max_var
     uint32_t dynamic_max_var = max_gyro;
 
 public:
@@ -27,7 +27,7 @@ public:
         dynamic_max_var = max_gyro;
     }
 
-    HSV tick(uint32_t absAccl, uint32_t dt_ms, EffectEngine *effectEngine) override
+    HSV tick(uint32_t absGyro, uint32_t dt_ms, EffectEngine *effectEngine) override
     {
         if (intro_timer_ms > 0)
         {
@@ -36,10 +36,10 @@ public:
             else
                 intro_timer_ms -= dt_ms;
 
-            return effectEngine->flash(HSV{255, 255, 255}, 100);
+            return effectEngine->flash(HSV{160, 255, 255}, 100);
         }
 
-        return animate(max_gyro, dynamic_max_var, absAccl);
+        return animate(max_gyro, dynamic_max_var, absGyro);
     }
 
     void setMaxGyro(uint32_t absAccl)
