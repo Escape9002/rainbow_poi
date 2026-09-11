@@ -315,31 +315,27 @@ void setup()
     poi_controller.setBatteryLevel(getBatteryPercentage());
 
     // ! DO NOT DO AN ANIMATION TICK YET, THE FastLED -> effectEngine isnt initialized yet.
-Serial.println("3");
+    Serial.println("3");
     // poi_controller.hardwareTick(0, 0);
-Serial.println("4");
+    Serial.println("4");
     // --------------------------------------------------------
     // Determine wake reason
     // --------------------------------------------------------
-
-    switch (esp_sleep_get_wakeup_cause())
+    esp_sleep_wakeup_cause_t wakeup_cause = esp_sleep_get_wakeup_cause();
+    if (wakeup_cause == ESP_SLEEP_WAKEUP_GPIO)
     {
-    case ESP_SLEEP_WAKEUP_GPIO:
         Serial.println("Wakeup: Motion");
-        break;
-
-    case ESP_SLEEP_WAKEUP_TIMER:
-
+    }
+    else if (wakeup_cause == ESP_SLEEP_WAKEUP_TIMER)
+    {
+        Serial.println("Wakeup: Timer");
         // we should check the battery and return to sleep if the charge is high enough.
         // otherwise we should start flashing red.
         // this should be handled by the battery check at the start of the setup function
-
-        break;
-
-    default:
+    }
+    else
+    {
         Serial.println("Wakeup: POWER ON / RESET | DEFAULT");
-
-        break;
     }
 
     // --------------------------------------------------------
@@ -360,6 +356,14 @@ Serial.println("4");
 
         // digital capacitor :3
         delay(250);
+
+        // init all endpoints to the poi controller defaults
+        endpointAlpha.setValue(poi_controller.getAlpha());
+        endpointBattery.setValue(poi_controller.getBatteryLevel());
+        endpointCntrlMde.setValue(toString(poi_controller.getAnimationState()));
+        endpointHueMax.setValue(poi_controller.getHueMax());
+        endpointHueMin.setValue(poi_controller.getHueMin());
+        
     }
 
 #endif
@@ -486,6 +490,10 @@ void loop()
 
         HSV hsv = poi_controller.tick(sensor_value, dt_ms);
         updateLEDs(hsv);
+
+        if(poi_controller.getAnimationState() == ANIMATION_STATE::GYRO){
+            Serial.println(sensor_value);
+        }
     }
 
     // ========================================================
@@ -518,7 +526,6 @@ void loop()
             // TODO changed endpoint receiver
             // 5. Read the value directly and safely
             uint32_t newAlpha = endpointAlpha.getValue();
-            Serial.printf("[MAIN] Received Alpha: %d\n", newAlpha);
 
             if (newAlpha != poi_controller.getAlpha())
             {
@@ -530,19 +537,26 @@ void loop()
             if (newHueMin != poi_controller.getHueMin())
             {
                 poi_controller.setColorRange(newHueMin, poi_controller.getHueMax());
+                Serial.printf("[MAIN] hueMin updated to: %d\n", poi_controller.getHueMin());
             }
 
             uint16_t newHueMax = endpointHueMax.getValue();
             if (newHueMax != poi_controller.getHueMax())
             {
                 poi_controller.setColorRange(poi_controller.getHueMin(), newHueMax);
+                Serial.printf("[MAIN] hueMAx updated to: %d\n", poi_controller.getHueMax());
             }
 
-            poi_controller.setAnimationState(
-                animationStringToState(
-                    endpointCntrlMde.getValue().c_str()));
+            std::string currentMode = endpointCntrlMde.getValue();
+            ANIMATION_STATE requestedState = animationStringToState(currentMode);
 
-            endpointCntrlMde.setValue(toString(poi_controller.getAnimationState()));
+            if (poi_controller.getAnimationState() != requestedState)
+            {
+                poi_controller.setAnimationState(requestedState);
+
+                endpointCntrlMde.setValue(toString(poi_controller.getAnimationState()));
+                Serial.printf("[MAIN] AnimState updated to: %s\n", toString(poi_controller.getAnimationState()));
+            }
         }
     }
 
