@@ -24,7 +24,7 @@
 // FastLED
 #define NUM_LEDS 15
 #define DATA_PIN 2
-#define LED_BRIGHTNESS 20
+#define LED_BRIGHTNESS 255
 
 // Status LED
 #define STATUS_LED_PIN 8
