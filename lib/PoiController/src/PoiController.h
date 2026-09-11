@@ -22,17 +22,15 @@ class PoiController
 {
 private:
     // --------------------------------------------------------
-    // Normal Vars
+    // Controller objects
     // --------------------------------------------------------
     EffectEngine &effectEngine;
     HAL &hal;
     uint8_t batteryPercentage = 100;
 
     // --------------------------------------------------------
-    // Animation State vars
+    // Animation States
     // --------------------------------------------------------
-    // All of these States are controller specific, I dont think the
-    // main.c should have to know of any of these.
     uint32_t NORM_SCALE = 1000;
 
     AcclAnimationState acclAni;
@@ -44,10 +42,8 @@ private:
     ANIMATION_STATE animState = ANIMATION_STATE::ACCL;
 
     // --------------------------------------------------------
-    // Hardware state vars
+    // Hardware states
     // --------------------------------------------------------
-    // All of these States are controller specific, I dont think the
-    // main.c should have to know of any of these.
 
     Sleep sleepState;
     On onState;
@@ -56,34 +52,27 @@ private:
 
     HARDWARE_STATE hardwareState = HARDWARE_STATE::IDLE;
 
-public:
-    /**
-     * @brief Construct a new Poi Controller object
-     *
-     * @param accl_max maximum accleration
-     * @param norm_scale scale on which to operate concerning float to fix-point
-     * @param alpha lowPass alpha
-     * @param min hueMin
-     * @param max hueMax
-     * @param dynamic_max enable dynamic maximum acceleration
-     */
-    PoiController(
-        EffectEngine &engine,
-        HAL &hal)
-        : effectEngine(engine),
-          hal(hal),
-          acclAni(NORM_SCALE, 80, 0, 250, true, &effectEngine),
-          constAni(NORM_SCALE, 80, 0, 250, true, &effectEngine),
-          flashAni(NORM_SCALE, 80, 0, 250, true, &effectEngine),
-          gyroAni(NORM_SCALE, 80, 0, 250, true, &effectEngine),
-          rainbowAni(NORM_SCALE, 80, 0, 250, true, &effectEngine),
-          onState(&hal),
-          idleState(&hal),
-          lowBatteryState(&hal),
-          sleepState(&hal)
+    // --------------------------------------------------------
+    // Helper Functions
+    // --------------------------------------------------------
+
+    AnimationState *getAnimator()
     {
-        enterAnimationState();
-        enterHardwareState();
+        switch (animState)
+        {
+        case ANIMATION_STATE::ACCL:
+            return &acclAni;
+        case ANIMATION_STATE::GYRO:
+            return &gyroAni;
+        case ANIMATION_STATE::CONST:
+            return &constAni;
+        case ANIMATION_STATE::FLASH:
+            return &flashAni;
+        case ANIMATION_STATE::RAINBOW:
+            return &rainbowAni;
+        }
+
+        __builtin_unreachable();
     }
 
     void enterAnimationState()
@@ -134,28 +123,9 @@ public:
         }
     }
 
-    HSV tick(uint32_t value, uint32_t dt_ms)
-    {
-        hardwareTick(value, dt_ms);
-
-        return animationTick(value, dt_ms);
-    }
-
-    HARDWARE_STATE getHardwareState()
-    {
-        return hardwareState;
-    }
-
-    ANIMATION_STATE getAnimationState()
-    {
-        return animState;
-    }
-
-    void setAnimationState(ANIMATION_STATE newState)
-    {
-        animState = newState;
-        enterAnimationState();
-    }
+    // --------------------------------------------------------
+    // dedicated Tick functions
+    // --------------------------------------------------------
 
     HSV animationTick(uint32_t value, uint32_t dt_ms)
     {
@@ -187,19 +157,23 @@ public:
         switch (hardwareState)
         {
         case HARDWARE_STATE::IDLE:
-            newState = idleState.execute(value, dt_ms);
+            newState = idleState.tick(value, dt_ms, batteryPercentage);
             break;
 
         case HARDWARE_STATE::ON:
-            newState = onState.execute(value, dt_ms);
+            newState = onState.tick(value, dt_ms, batteryPercentage);
             break;
 
         case HARDWARE_STATE::SLEEP:
-            newState = sleepState.execute(value, dt_ms);
+            newState = sleepState.tick(value, dt_ms, batteryPercentage);
             break;
 
         case HARDWARE_STATE::LOW_BATTERY:
-            newState = lowBatteryState.execute(value, dt_ms);
+            // if we are low on battery, we should flash red!
+            if (animState != ANIMATION_STATE::FLASH){
+                setAnimationState(ANIMATION_STATE::FLASH);
+            }
+            newState = lowBatteryState.tick(value, dt_ms, batteryPercentage);
             break;
         }
 
@@ -210,70 +184,99 @@ public:
         }
     }
 
+public:
+    /**
+     * @brief Construct a new Poi Controller object
+     *
+     * @param accl_max maximum accleration
+     * @param norm_scale scale on which to operate concerning float to fix-point
+     * @param alpha lowPass alpha
+     * @param min hueMin
+     * @param max hueMax
+     * @param dynamic_max enable dynamic maximum acceleration
+     */
+    PoiController(
+        EffectEngine &engine,
+        HAL &hal)
+        : effectEngine(engine),
+          hal(hal),
+          acclAni(NORM_SCALE, 80, 0, 250, true, &effectEngine),
+          constAni(NORM_SCALE, 80, 0, 250, true, &effectEngine),
+          flashAni(NORM_SCALE, 80, 0, 250, true, &effectEngine),
+          gyroAni(NORM_SCALE, 80, 0, 250, true, &effectEngine),
+          rainbowAni(NORM_SCALE, 80, 0, 250, true, &effectEngine),
+          onState(&hal),
+          idleState(&hal),
+          lowBatteryState(&hal),
+          sleepState(&hal)
+    {
+        enterAnimationState();
+        enterHardwareState();
+    }
+
+    // --------------------------------------------------------
+    // general tick for outside world
+    // --------------------------------------------------------
+
+    HSV tick(uint32_t value, uint32_t dt_ms)
+    {
+        hardwareTick(value, dt_ms);
+
+        return animationTick(value, dt_ms);
+    }
+
+    // --------------------------------------------------------
+    // Getter + Setter
+    // --------------------------------------------------------
+
+    HARDWARE_STATE getHardwareState()
+    {
+        return hardwareState;
+    }
+
+    ANIMATION_STATE getAnimationState()
+    {
+        return animState;
+    }
+
+    void setAnimationState(ANIMATION_STATE newState)
+    {
+        animState = newState;
+        enterAnimationState();
+    }
+
     void setBatteryLevel(uint8_t newBatteryPercentage)
     {
         batteryPercentage = newBatteryPercentage;
-    }
-
-    //////////////////////////////////////////////////////////
-    /// The below feels a little wrong, since we are directly
-    /// passing the calls through to the underlying state.
-    /// Doesnt this violtate some rule?
-    /// > Jede Ebene muss etwas tun, sonst schlechtes Design?
-    //////////////////////////////////////////////////////////
-
-    AnimationState *getAnimator()
-    {
-        switch (animState)
-        {
-        case ANIMATION_STATE::ACCL:
-            return &acclAni;
-        case ANIMATION_STATE::GYRO:
-            return &gyroAni;
-        case ANIMATION_STATE::CONST:
-            return &constAni;
-        case ANIMATION_STATE::FLASH:
-            return &flashAni;
-        case ANIMATION_STATE::RAINBOW:
-            return &rainbowAni;
-        }
-
-        __builtin_unreachable();
     }
 
     void setAlpha(uint32_t alpha)
     {
 
         getAnimator()->setAlpha(alpha);
-        
-        
     }
 
     uint32_t getAlpha()
     {
         return getAnimator()->getAlpha();
-        
     }
 
     void setColorRange(uint32_t min, uint32_t max)
     {
         getAnimator()->setColorRange(min, max);
-          
     }
 
     uint32_t getHueMin()
     {
         return getAnimator()->getHueMin();
-             
     }
     uint32_t getHueMax()
     {
         return getAnimator()->getHueMax();
-        
     }
 
     void setDynamicMax(bool state)
     {
         getAnimator()->setDynamicMax(state);
-  }
+    }
 };

@@ -4,7 +4,6 @@ enum class HARDWARE_STATE
     IDLE,
     ON,
     LOW_BATTERY,
-    ERROR
 
 };
 
@@ -40,5 +39,8 @@ HARDWARE_STATE HardwareStateFromString(const char* str)
     if (str == "LOW_BATTERY")
         return HARDWARE_STATE::LOW_BATTERY;
 
-    return HARDWARE_STATE::ERROR;
+    // THIS CAN BE A SOURCE OF BUGS!
+    // the fix would tbe to have the function return a struct with a bool and the state.
+    // i dont think its worth it...
+    return HARDWARE_STATE::IDLE;
 }

@@ -312,7 +312,7 @@ void setup()
     // the controller must do a tick to update its hardware states!
     // otherwise the default values persist!
     poi_controller.setBatteryLevel(getBatteryPercentage());
-    poi_controller.hardwareTick(0, 0);
+    poi_controller.tick(0, 0);
 
     // --------------------------------------------------------
     // Determine wake reason

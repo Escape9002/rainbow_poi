@@ -12,22 +12,30 @@ public:
     {
         /**
          * > How do we get the battery state into this part of the code?
-         * 
+         *
          * If we reach low battery, this should be done:
          * 1. enter the flashing mode of the animation-stack. It should flash red.
-         *      Is handled by the poi-Controller, just ensure that we return the correct 
+         *      Is handled by the poi-Controller, just ensure that we return the correct
          *      Hardware State, so the controller knows whats happening.
          * 2. if smart(?) disable bluetooth.
-         *      Should be a function in the HAL? I dont know how to disable bluetooth at runtime 
+         *      Should be a function in the HAL? I dont know how to disable bluetooth at runtime
          *      at the moment.
          * 3. Enter deep-sleep if battery is nearing a very low number.
          *      This is a certified HAL moment, we can do this here!
          */
 
-         
+        // if we should enter the battery state is checked by the HardwareState tick function
+        // if we reach the execute step, the HardwareState.ticK() evaluated that batteryLevels > minimum
+        // we can thus safly switch to IDLE.
+
+        // on enter can be empty, since we only represent the low battery state here.
+        // doing the wanted actions has to be done by the controller. (kinda stupid, since the state
+        // should controll what happens...)
+        return HARDWARE_STATE::IDLE;
     }
 
-    HARDWARE_STATE getState() override {
+    HARDWARE_STATE getState() override
+    {
         return HARDWARE_STATE::LOW_BATTERY;
     }
 };
