@@ -7,13 +7,10 @@
 #include <driver/gpio.h>
 
 #include <FastLED.h>
-#include "FastLEDEffects.h"
 
 #include <HSV.h>
 #include <LowPass.h>
 #include <ESP32C3SuperMini.h>
-
-#include <Preferences.h>
 
 // ============================================================
 // HARDWARE CONFIGURATION
@@ -51,6 +48,7 @@ bfs::Mpu9250 imu(&Wire, bfs::Mpu9250::I2C_ADDR_PRIM);
 #if BLE
 #include <BLEServer.h>
 #include <BleEndpoint.h>
+#include "FastLEDEffects.h"
 
 #define BLE_DEVICE_NAME "POI"
 
@@ -272,16 +270,7 @@ uint8_t getBatteryPercentage()
 // POI_CONTROLLER
 // ============================================================
 #include <PoiController.h>
-#include <PoiConfig.h>
 ESP32C3SuperMini esp32_c3_superMini = ESP32C3SuperMini(&imu, IMU_INT_PIN);
-
-Preferences preferences;
-PoiConfig savedConfig = {
-    {80, 0, 250},         // accl
-    {80, 0, 250},         // gyro
-    ANIMATION_STATE::ACCL // animState
-};
-
 PoiController poi_controller = PoiController(
     realEffectEngine,
     esp32_c3_superMini);
@@ -308,7 +297,7 @@ void setup()
     // --------------------------------------------------------
     // GPIO
     // --------------------------------------------------------
-
+    Serial.println("1");
     pinMode(IMU_INT_PIN, INPUT_PULLDOWN);
 
     pinMode(STATUS_LED_PIN, OUTPUT);
@@ -318,42 +307,17 @@ void setup()
     digitalWrite(STATUS_LED_PIN, LOW);
 
     // --------------------------------------------------------
-    // Load config from Flash Memory (EEPROM equivalent)
-    // --------------------------------------------------------
-    // This has to be used since brownouts are essentialy the default path
-    // for my boot sequence :3
-
-    preferences.begin("poi", false); // Open namespace "poi", false = read/write mode
-
-    // Check if we have previously saved data
-    if (preferences.getBytesLength("cfg") == sizeof(PoiConfig))
-    {
-        preferences.getBytes("cfg", &savedConfig, sizeof(PoiConfig));
-        Serial.println("Loaded config from Flash!");
-    }
-    else
-    {
-        // First boot ever: save the defaults to Flash
-        preferences.putBytes("cfg", &savedConfig, sizeof(PoiConfig));
-        Serial.println("Created new config in Flash.");
-    }
-
-    // --------------------------------------------------------
     // Check battery levels and report to controller
     // --------------------------------------------------------
-
+    // the controller must do a tick to update its hardware states!
+    // otherwise the default values persist!
+    Serial.println("2");
     poi_controller.setBatteryLevel(getBatteryPercentage());
 
-    poi_controller.setAnimationState(ANIMATION_STATE::ACCL);
-    poi_controller.setAlpha(savedConfig.accl.alpha);
-    poi_controller.setColorRange(savedConfig.accl.hueMin, savedConfig.accl.hueMax);
-
-    poi_controller.setAnimationState(ANIMATION_STATE::GYRO);
-    poi_controller.setAlpha(savedConfig.gyro.alpha);
-    poi_controller.setColorRange(savedConfig.gyro.hueMin, savedConfig.gyro.hueMax);
-
-    poi_controller.setAnimationState(savedConfig.animState);
-
+    // ! DO NOT DO AN ANIMATION TICK YET, THE FastLED -> effectEngine isnt initialized yet.
+    Serial.println("3");
+    // poi_controller.hardwareTick(0, 0);
+    Serial.println("4");
     // --------------------------------------------------------
     // Determine wake reason
     // --------------------------------------------------------
@@ -399,6 +363,7 @@ void setup()
         endpointCntrlMde.setValue(toString(poi_controller.getAnimationState()));
         endpointHueMax.setValue(poi_controller.getHueMax());
         endpointHueMin.setValue(poi_controller.getHueMin());
+        
     }
 
 #endif
@@ -526,8 +491,7 @@ void loop()
         HSV hsv = poi_controller.tick(sensor_value, dt_ms);
         updateLEDs(hsv);
 
-        if (poi_controller.getAnimationState() == ANIMATION_STATE::GYRO)
-        {
+        if(poi_controller.getAnimationState() == ANIMATION_STATE::GYRO){
             Serial.println(sensor_value);
         }
     }
@@ -562,6 +526,7 @@ void loop()
             // TODO changed endpoint receiver
             // 5. Read the value directly and safely
             uint32_t newAlpha = endpointAlpha.getValue();
+
             if (newAlpha != poi_controller.getAlpha())
             {
                 poi_controller.setAlpha(newAlpha);
@@ -592,16 +557,6 @@ void loop()
                 endpointCntrlMde.setValue(toString(poi_controller.getAnimationState()));
                 Serial.printf("[MAIN] AnimState updated to: %s\n", toString(poi_controller.getAnimationState()));
             }
-
-            SensorConfig newConfig = {
-                poi_controller.getAlpha(),
-                poi_controller.getHueMin(),
-                poi_controller.getHueMax()};
-            savedConfig.update(newConfig, poi_controller.getAnimationState());
-            preferences.putBytes("cfg", &savedConfig, sizeof(PoiConfig));
-
-            Serial.println("new Config:");
-            Serial.println(savedConfig.toString().c_str());
         }
     }
 
