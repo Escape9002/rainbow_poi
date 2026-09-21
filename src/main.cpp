@@ -560,5 +560,8 @@ void loop()
         }
     }
 
+    // turn at least tripple the amount the LED needs to render.
+    delay(LED_UPDATE_MS/3);
+
 #endif
 }
