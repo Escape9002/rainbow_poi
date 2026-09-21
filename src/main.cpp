@@ -11,7 +11,7 @@
 #include <HSV.h>
 #include <LowPass.h>
 #include <ESP32C3SuperMini.h>
-
+#include <Preferences.h>
 // ============================================================
 // HARDWARE CONFIGURATION
 // ============================================================
@@ -24,7 +24,7 @@
 // FastLED
 #define NUM_LEDS 15
 #define DATA_PIN 2
-#define LED_BRIGHTNESS 255
+#define LED_BRIGHTNESS 20
 
 // Status LED
 #define STATUS_LED_PIN 8
@@ -34,6 +34,29 @@
 const uint16_t CHARGE_CUTOFF_V = 4200;    // mV
 const uint16_t DISCHARGE_CUTOFF_V = 3230; // mV
 uint16_t chargePercentage = 100;
+
+// ============================================================
+// OTA CONFIG
+// ============================================================
+
+#define OTA 1
+#if OTA
+#include <WiFi.h>
+#include <ArduinoOTA.h>
+#include <OTAConfig.h>
+
+const char *ssid = "000";      // Specify your WiFi SSID
+const char *password = "0000"; // Specify your WiFi Password
+
+Preferences preferences;
+OTASettings savedSettings = {"", "", ""};
+#endif
+
+#define PRODUCTION_RELEASE 1
+#if !PRODUCTION_RELEASE
+#include "LocalOTA.h"
+
+#endif
 
 // ============================================================
 // MPU9250
@@ -64,6 +87,11 @@ bfs::Mpu9250 imu(&Wire, bfs::Mpu9250::I2C_ADDR_PRIM);
     "f789580d-1fd5-4579-bf3f-18db5adc6b3e"
 #define CONTROLLER_MODE_UUID \
     "bbe6c883-f669-4fa8-b110-808feb345e75"
+
+#define OTA_SSID_UUID "5fddf75c-642e-4680-a28f-ff170e95eb62"
+#define OTA_SSID_PWD "1dc9ae9c-6d6a-47f3-b1f3-3d75cb8bb801"
+#define OTA_PWD "77436d8a-2068-4fa3-9563-91c62339909f"
+
 // 1. Create the server instance
 BleServer bleServer(BLE_SERVICE_UUID);
 // 2. Create our custom typed endpoint (initial value: 80)
@@ -71,6 +99,10 @@ BleEndpoint<uint32_t> endpointAlpha(ALPHA_UUID, "filter_alpha", 80, NIMBLE_PROPE
 BleEndpoint<uint16_t> endpointHueMin(HUE_MIN_UUID, "hueMin", 260, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
 BleEndpoint<uint16_t> endpointHueMax(HUE_MAX_UUID, "hueMax", 359, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
 BleEndpoint<std::string> endpointCntrlMde(CONTROLLER_MODE_UUID, "CntrlMde", "GYRO", NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
+
+BleEndpoint<std::string> endpointSSID(OTA_SSID_UUID, "SSID", "1234", NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
+BleEndpoint<std::string> endpointWifiPwd(OTA_SSID_PWD, "WIFI_PWD", "1234", NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
+BleEndpoint<std::string> endpointOTAPwd(OTA_PWD, "OTA_PWD", "1234", NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
 
 // Typ: uint8_t | Startwert: 100% | Rechte: Lesen & Benachrichtigen (Kein Schreiben vom Handy!)
 BleEndpoint<uint8_t> endpointBattery(
@@ -294,10 +326,59 @@ void setup()
 
     setCpuFrequencyMhz(80);
 
+// --------------------------------------------------------
+// OTA
+// --------------------------------------------------------
+#if OTA
+    preferences.begin("ota", false); // Separate namespace from "poi"
+
+#if PRODUCTION_RELEASE
+    if (preferences.getBytesLength("cfg") == sizeof(OTASettings))
+    {
+        preferences.getBytes("cfg", &savedSettings, sizeof(OTASettings));
+    }
+#else
+    // C++ requires strncpy for char arrays!
+    strncpy(savedSettings.ssid, localSettings.ssid, sizeof(savedSettings.ssid));
+    strncpy(savedSettings.pwd, localSettings.pwd, sizeof(savedSettings.pwd));
+    strncpy(savedSettings.ota_pwd, localSettings.ota_pwd, sizeof(savedSettings.ota_pwd));
+#endif
+
+    // ONLY attempt connection if an SSID actually exists
+    if (strlen(savedSettings.ssid) > 0)
+    {
+        Serial.printf("Attempting to connect to WIFi: %s\n", savedSettings.ssid);
+        WiFi.begin(savedSettings.ssid, savedSettings.pwd);
+
+        uint32_t startAttempt = millis();
+        // TIMEOUT ADDED: Give up after 10 seconds!
+        while (WiFi.status() != WL_CONNECTED && millis() - startAttempt < 10000)
+        {
+            delay(500);
+            Serial.print(".");
+        }
+
+        if (WiFi.status() == WL_CONNECTED)
+        {
+            Serial.println("\nWiFi connected!");
+            ArduinoOTA.setPassword(savedSettings.ota_pwd);
+            ArduinoOTA.begin();
+            ArduinoOTA.onStart([]()
+                               {
+        Serial.println("OTA Update Starting. Disabling LEDs...");
+        // Turn LEDs black to prevent FastLED WDT crashes during flash write
+        FastLED.clear(true); });
+        }
+        else
+        {
+            Serial.println("\nWiFi failed. Turning off WiFi to save battery.");
+            WiFi.mode(WIFI_OFF); // Crucial for battery life!
+        }
+    }
+#endif
     // --------------------------------------------------------
     // GPIO
     // --------------------------------------------------------
-    Serial.println("1");
     pinMode(IMU_INT_PIN, INPUT_PULLDOWN);
 
     pinMode(STATUS_LED_PIN, OUTPUT);
@@ -311,13 +392,9 @@ void setup()
     // --------------------------------------------------------
     // the controller must do a tick to update its hardware states!
     // otherwise the default values persist!
-    Serial.println("2");
+
     poi_controller.setBatteryLevel(getBatteryPercentage());
 
-    // ! DO NOT DO AN ANIMATION TICK YET, THE FastLED -> effectEngine isnt initialized yet.
-    Serial.println("3");
-    // poi_controller.hardwareTick(0, 0);
-    Serial.println("4");
     // --------------------------------------------------------
     // Determine wake reason
     // --------------------------------------------------------
@@ -352,7 +429,10 @@ void setup()
                                           &endpointHueMin,
                                           &endpointHueMax,
                                           &endpointBattery,
-                                          &endpointCntrlMde});
+                                          &endpointCntrlMde,
+                                          &endpointSSID,
+                                          &endpointWifiPwd,
+                                          &endpointOTAPwd});
 
         // digital capacitor :3
         delay(250);
@@ -363,7 +443,7 @@ void setup()
         endpointCntrlMde.setValue(toString(poi_controller.getAnimationState()));
         endpointHueMax.setValue(poi_controller.getHueMax());
         endpointHueMin.setValue(poi_controller.getHueMin());
-        
+        endpointSSID.setValue(std::string(savedSettings.ssid));
     }
 
 #endif
@@ -458,6 +538,13 @@ void loop()
 {
     digitalWrite(STATUS_LED_PIN, LOW);
 
+#if OTA
+    if (WiFi.status() == WL_CONNECTED)
+    {
+        ArduinoOTA.handle();
+    }
+#endif
+
     static uint32_t latest_accl = 0;
     static uint32_t latest_gyro = 0;
 
@@ -491,7 +578,8 @@ void loop()
         HSV hsv = poi_controller.tick(sensor_value, dt_ms);
         updateLEDs(hsv);
 
-        if(poi_controller.getAnimationState() == ANIMATION_STATE::GYRO){
+        if (poi_controller.getAnimationState() == ANIMATION_STATE::GYRO)
+        {
             Serial.println(sensor_value);
         }
     }
@@ -557,11 +645,47 @@ void loop()
                 endpointCntrlMde.setValue(toString(poi_controller.getAnimationState()));
                 Serial.printf("[MAIN] AnimState updated to: %s\n", toString(poi_controller.getAnimationState()));
             }
+
+            bool ota_changed = false;
+
+            // Handle OTA SSID
+            std::string newSsid = endpointSSID.getValue();
+            if (!newSsid.empty() && newSsid != std::string(savedSettings.ssid))
+            {
+                strncpy(savedSettings.ssid, newSsid.c_str(), sizeof(savedSettings.ssid) - 1);
+                savedSettings.ssid[sizeof(savedSettings.ssid) - 1] = '\0'; // Guarantee null termination
+                ota_changed = true;
+            }
+
+            // Handle OTA WiFi Password
+            std::string newPwd = endpointWifiPwd.getValue();
+            if (!newPwd.empty() && newPwd != std::string(savedSettings.pwd))
+            {
+                strncpy(savedSettings.pwd, newPwd.c_str(), sizeof(savedSettings.pwd) - 1);
+                savedSettings.pwd[sizeof(savedSettings.pwd) - 1] = '\0';
+                ota_changed = true;
+            }
+
+            // Handle OTA Password
+            std::string newKey = endpointOTAPwd.getValue();
+            if (!newKey.empty() && newKey != std::string(savedSettings.ota_pwd))
+            {
+                strncpy(savedSettings.ota_pwd, newKey.c_str(), sizeof(savedSettings.ota_pwd) - 1);
+                savedSettings.ota_pwd[sizeof(savedSettings.ota_pwd) - 1] = '\0';
+                ota_changed = true;
+            }
+
+            // Save to Flash
+            if (ota_changed)
+            {
+                preferences.putBytes("cfg", &savedSettings, sizeof(OTASettings));
+                Serial.println("[BLE] OTA Settings updated and saved to Flash!");
+            }
         }
     }
 
     // turn at least tripple the amount the LED needs to render.
-    delay(LED_UPDATE_MS/3);
+    delay(LED_UPDATE_MS / 3);
 
 #endif
 }
