@@ -5,7 +5,7 @@
 class Idle : public HardwareState
 {
 private:
-    static constexpr uint32_t NO_MOTION_TIMEOUT = 10000;
+    static constexpr uint32_t NO_MOTION_TIMEOUT = 1000 * 60 * 5;
     static constexpr uint32_t DEADZONE = 1000;
 
 public:
