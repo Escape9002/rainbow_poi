@@ -451,9 +451,21 @@ void setup()
     // --------------------------------------------------------
     // MPU9250
     // --------------------------------------------------------
-    Wire.begin(
+    // the I2C channel might still be configured from a previous boot.
+    // ensure to reset it, otherwise the board will crash.
+
+    while (!Wire.end())
+    {
+        delay(10);
+    }
+
+    while (!Wire.begin(
         IMU_SDA_PIN,
-        IMU_SCL_PIN);
+        IMU_SCL_PIN))
+    {
+        Wire.end();
+        delay(100);
+    }
 
     Wire.setClock(400000);
 
