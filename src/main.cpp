@@ -311,6 +311,88 @@ PoiController poi_controller = PoiController(
 // SETUP
 // ============================================================
 
+#include "esp_system.h" // Needed for esp_reset_reason()
+
+
+struct BootLogEntry {
+    esp_reset_reason_t reset_reason;
+};
+
+constexpr uint8_t MAX_LOG_ENTRIES = 16; // 16 entries is plenty and uses < 200 bytes
+
+// Helper to convert esp_reset_reason_t to readable text
+const char* resetReasonToString(esp_reset_reason_t reason) {
+    switch (reason) {
+        case ESP_RST_POWERON:   return "POWER_ON";
+        case ESP_RST_EXT:       return "EXTERNAL_PIN";
+        case ESP_RST_SW:        return "SOFTWARE_RESTART";
+        case ESP_RST_PANIC:     return "CRASH / PANIC (EXCEPTION)";
+        case ESP_RST_INT_WDT:   return "INTERRUPT_WATCHDOG";
+        case ESP_RST_TASK_WDT:  return "TASK_WATCHDOG (FREEZE)";
+        case ESP_RST_WDT:       return "OTHER_WATCHDOG";
+        case ESP_RST_DEEPSLEEP: return "DEEP_SLEEP_WAKE";
+        case ESP_RST_BROWNOUT:  return "BROWNOUT (VOLTAGE DROP)";
+        case ESP_RST_SDIO:      return "SDIO";
+        default:                return "UNKNOWN";
+    }
+}
+
+
+void logAndPrintBootDiagnostics() {
+    esp_reset_reason_t reset_reason = esp_reset_reason();
+    
+
+    BootLogEntry history[MAX_LOG_ENTRIES];
+    uint8_t count = 0;
+    uint32_t total_boots = 0;
+
+    preferences.begin("boot_diag", false);
+
+    // Read previous boot count
+    total_boots = preferences.getUInt("total_boots", 0);
+    total_boots++;
+    preferences.putUInt("total_boots", total_boots);
+
+    // Read previous logs
+    if (preferences.getBytesLength("logs") == sizeof(history)) {
+        preferences.getBytes("logs", history, sizeof(history));
+        count = preferences.getUChar("count", 0);
+    } else {
+        memset(history, 0, sizeof(history));
+    }
+
+    // Print Historical Logs to Serial
+    Serial.println("\n========== BOOT DIAGNOSTIC HISTORY ==========");
+    Serial.printf("Lifetime Total Boots: %u\n", total_boots);
+    Serial.println("----------------------------------------------");
+    for (uint8_t i = 0; i < count; i++) {
+        Serial.printf("#%02d, %-25s\n",
+                      i + 1,
+                      resetReasonToString(history[i].reset_reason));
+    }
+    Serial.println("----------------------------------------------");
+    Serial.printf("CURRENT BOOT: Reset Reason: %s \n",
+                  resetReasonToString(reset_reason));
+    Serial.println("==============================================\n");
+
+    // Push new entry into our circular array (shift oldest out if full)
+    if (count < MAX_LOG_ENTRIES) {
+        history[count] = {reset_reason};
+        count++;
+    } else {
+        // Shift left: drop oldest, add newest at end
+        for (uint8_t i = 0; i < MAX_LOG_ENTRIES - 1; i++) {
+            history[i] = history[i + 1];
+        }
+        history[MAX_LOG_ENTRIES - 1] = {reset_reason};
+    }
+
+    // Save back to Flash
+    preferences.putBytes("logs", history, sizeof(history));
+    preferences.putUChar("count", count);
+    preferences.end();
+}
+
 void setup()
 {
     // --------------------------------------------------------
@@ -318,6 +400,19 @@ void setup()
     // --------------------------------------------------------
 
     Serial.begin(115200);
+
+    while (!Serial.available())
+    {
+        delay(100);
+    }
+Serial.flush();
+delay(100);
+       logAndPrintBootDiagnostics();
+
+       while (!Serial.available())
+    {
+        delay(10000);
+    }
 
     Serial.println();
     Serial.println("==============================");
@@ -413,6 +508,7 @@ void setup()
     else
     {
         Serial.println("Wakeup: POWER ON / RESET | DEFAULT");
+        Serial.println(wakeup_cause);
     }
 
     // --------------------------------------------------------
