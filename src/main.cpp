@@ -25,7 +25,7 @@
 // FastLED
 #define NUM_LEDS 15
 #define DATA_PIN 2
-#define LED_BRIGHTNESS 20
+#define LED_BRIGHTNESS 255
 
 // Status LED
 #define STATUS_LED_PIN 8
@@ -443,19 +443,6 @@ void setup()
     }
 #endif
 
-/**
- * Disabling the brownout detector is bad, buuuuut i dont want to buy capacitors.
- * The detector will be turned on after the setup again. 
- * It SHOULD be safe :3
- * 
- * Remove ASAP (aka, get money and a capacitor)
- * 
- * Sources: 
- * - https://www.espboards.dev/troubleshooting/issues/power/esp32-brownout-reset/
- * - https://embeddedprep.com/esp32-brownout-tutorials/
- */
-    WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); // disable brownout detector
-
     Serial.println();
     Serial.println("==============================");
     Serial.println("ESP32-C3 POI");
@@ -463,56 +450,6 @@ void setup()
 
     setCpuFrequencyMhz(80);
 
-// --------------------------------------------------------
-// OTA
-// --------------------------------------------------------
-#if OTA
-    preferences.begin("ota", false); // Separate namespace from "poi"
-
-#if PRODUCTION_RELEASE
-    if (preferences.getBytesLength("cfg") == sizeof(OTASettings))
-    {
-        preferences.getBytes("cfg", &savedSettings, sizeof(OTASettings));
-    }
-#else
-    // C++ requires strncpy for char arrays!
-    strncpy(savedSettings.ssid, localSettings.ssid, sizeof(savedSettings.ssid));
-    strncpy(savedSettings.pwd, localSettings.pwd, sizeof(savedSettings.pwd));
-    strncpy(savedSettings.ota_pwd, localSettings.ota_pwd, sizeof(savedSettings.ota_pwd));
-#endif
-
-    // ONLY attempt connection if an SSID actually exists
-    if (strlen(savedSettings.ssid) > 0)
-    {
-        Serial.printf("Attempting to connect to WIFi: %s\n", savedSettings.ssid);
-        WiFi.begin(savedSettings.ssid, savedSettings.pwd);
-
-        uint32_t startAttempt = millis();
-        // TIMEOUT ADDED: Give up after 10 seconds!
-        while (WiFi.status() != WL_CONNECTED && millis() - startAttempt < 10000)
-        {
-            delay(500);
-            Serial.print(".");
-        }
-
-        if (WiFi.status() == WL_CONNECTED)
-        {
-            Serial.println("\nWiFi connected!");
-            ArduinoOTA.setPassword(savedSettings.ota_pwd);
-            ArduinoOTA.begin();
-            ArduinoOTA.onStart([]()
-                               {
-        Serial.println("OTA Update Starting. Disabling LEDs...");
-        // Turn LEDs black to prevent FastLED WDT crashes during flash write
-        FastLED.clear(true); });
-        }
-        else
-        {
-            Serial.println("\nWiFi failed. Turning off WiFi to save battery.");
-            WiFi.mode(WIFI_OFF); // Crucial for battery life!
-        }
-    }
-#endif
     // --------------------------------------------------------
     // GPIO
     // --------------------------------------------------------
@@ -552,6 +489,81 @@ void setup()
         Serial.println("Wakeup: POWER ON / RESET | DEFAULT");
         Serial.println(wakeup_cause);
     }
+// --------------------------------------------------------
+// OTA - PREPERATION
+// --------------------------------------------------------
+// loading the values from flash here, since the brownout detector
+// will be disabled later on. This might corrupt flash, which is why
+// we read it here.
+#if OTA
+    preferences.begin("ota", false); // Separate namespace from "poi"
+
+#if PRODUCTION_RELEASE
+    if (preferences.getBytesLength("cfg") == sizeof(OTASettings))
+    {
+        preferences.getBytes("cfg", &savedSettings, sizeof(OTASettings));
+    }
+#else
+    // C++ requires strncpy for char arrays!
+    strncpy(savedSettings.ssid, localSettings.ssid, sizeof(savedSettings.ssid));
+    strncpy(savedSettings.pwd, localSettings.pwd, sizeof(savedSettings.pwd));
+    strncpy(savedSettings.ota_pwd, localSettings.ota_pwd, sizeof(savedSettings.ota_pwd));
+#endif
+#endif
+
+    /**
+     * Disabling the brownout detector is bad, buuuuut i dont want to buy capacitors.
+     * The detector will be turned on after the setup again.
+     * It SHOULD be safe :3
+     *
+     * Remove ASAP (aka, get money and a capacitor)
+     *
+     * The WIFI/bluetooth part should be the only thing where the brownout detector might trigger.
+     * I am only activating it for this time.
+     *
+     * Sources:
+     * - https://www.espboards.dev/troubleshooting/issues/power/esp32-brownout-reset/
+     * - https://embeddedprep.com/esp32-brownout-tutorials/
+     */
+    WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); // disable brownout detector
+
+// --------------------------------------------------------
+// OTA
+// --------------------------------------------------------
+#if OTA
+
+    // ONLY attempt connection if an SSID actually exists
+    if (strlen(savedSettings.ssid) > 0)
+    {
+        Serial.printf("Attempting to connect to WIFi: %s\n", savedSettings.ssid);
+        WiFi.begin(savedSettings.ssid, savedSettings.pwd);
+
+        uint32_t startAttempt = millis();
+        // TIMEOUT ADDED: Give up after 10 seconds!
+        while (WiFi.status() != WL_CONNECTED && millis() - startAttempt < 10000)
+        {
+            delay(500);
+            Serial.print(".");
+        }
+
+        if (WiFi.status() == WL_CONNECTED)
+        {
+            Serial.println("\nWiFi connected!");
+            ArduinoOTA.setPassword(savedSettings.ota_pwd);
+            ArduinoOTA.begin();
+            ArduinoOTA.onStart([]()
+                               {
+        Serial.println("OTA Update Starting. Disabling LEDs...");
+        // Turn LEDs black to prevent FastLED WDT crashes during flash write
+        FastLED.clear(true); });
+        }
+        else
+        {
+            Serial.println("\nWiFi failed. Turning off WiFi to save battery.");
+            WiFi.mode(WIFI_OFF); // Crucial for battery life!
+        }
+    }
+#endif
 
     // --------------------------------------------------------
     // BLE
@@ -585,6 +597,8 @@ void setup()
     }
 
 #endif
+
+    WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 1); // enable brownout detector
 
     // --------------------------------------------------------
     // MPU9250
@@ -682,8 +696,6 @@ void setup()
     lastLedUpdate = millis();
 
     Serial.println("Setup complete.");
-
-    WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 1); // enable brownout detector
 }
 
 void loop()

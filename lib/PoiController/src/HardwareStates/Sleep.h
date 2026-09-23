@@ -11,7 +11,7 @@ public:
     HARDWARE_STATE execute(uint32_t value, uint32_t dt_ms) override
     {
 
-        // this->hal->enterDeepSleep();
+        this->hal->enterDeepSleep();
 
         // this is not going to run, enterDeepSleep kills anything asap
         return HARDWARE_STATE::SLEEP;
