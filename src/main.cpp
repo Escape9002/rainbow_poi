@@ -5,6 +5,7 @@
 #include "mpu9250.h"
 #include "esp_sleep.h"
 #include <driver/gpio.h>
+#include "soc/rtc_cntl_reg.h"
 
 #include <FastLED.h>
 
@@ -58,6 +59,114 @@ OTASettings savedSettings = {"", "", ""};
 
 #endif
 
+// ============================================================
+// RESET REASON LOGGER
+// ============================================================
+#define RESET_LOGGER 0
+#if RESET_LOGGER
+#include "esp_system.h" // Needed for esp_reset_reason()
+#include <soc/soc.h>
+
+struct BootLogEntry
+{
+    esp_reset_reason_t reset_reason;
+};
+
+constexpr uint8_t MAX_LOG_ENTRIES = 16; // 16 entries is plenty and uses < 200 bytes
+
+// Helper to convert esp_reset_reason_t to readable text
+const char *resetReasonToString(esp_reset_reason_t reason)
+{
+    switch (reason)
+    {
+    case ESP_RST_POWERON:
+        return "POWER_ON";
+    case ESP_RST_EXT:
+        return "EXTERNAL_PIN";
+    case ESP_RST_SW:
+        return "SOFTWARE_RESTART";
+    case ESP_RST_PANIC:
+        return "CRASH / PANIC (EXCEPTION)";
+    case ESP_RST_INT_WDT:
+        return "INTERRUPT_WATCHDOG";
+    case ESP_RST_TASK_WDT:
+        return "TASK_WATCHDOG (FREEZE)";
+    case ESP_RST_WDT:
+        return "OTHER_WATCHDOG";
+    case ESP_RST_DEEPSLEEP:
+        return "DEEP_SLEEP_WAKE";
+    case ESP_RST_BROWNOUT:
+        return "BROWNOUT (VOLTAGE DROP)";
+    case ESP_RST_SDIO:
+        return "SDIO";
+    default:
+        return "UNKNOWN";
+    }
+}
+
+void logAndPrintBootDiagnostics()
+{
+    esp_reset_reason_t reset_reason = esp_reset_reason();
+
+    BootLogEntry history[MAX_LOG_ENTRIES];
+    uint8_t count = 0;
+    uint32_t total_boots = 0;
+
+    preferences.begin("boot_diag", false);
+
+    // Read previous boot count
+    total_boots = preferences.getUInt("total_boots", 0);
+    total_boots++;
+    preferences.putUInt("total_boots", total_boots);
+
+    // Read previous logs
+    if (preferences.getBytesLength("logs") == sizeof(history))
+    {
+        preferences.getBytes("logs", history, sizeof(history));
+        count = preferences.getUChar("count", 0);
+    }
+    else
+    {
+        memset(history, 0, sizeof(history));
+    }
+
+    // Print Historical Logs to Serial
+    Serial.println("\n========== BOOT DIAGNOSTIC HISTORY ==========");
+    Serial.printf("Lifetime Total Boots: %u\n", total_boots);
+    Serial.println("----------------------------------------------");
+    for (uint8_t i = 0; i < count; i++)
+    {
+        Serial.printf("#%02d, %-25s\n",
+                      i + 1,
+                      resetReasonToString(history[i].reset_reason));
+    }
+    Serial.println("----------------------------------------------");
+    Serial.printf("CURRENT BOOT: Reset Reason: %s \n",
+                  resetReasonToString(reset_reason));
+    Serial.println("==============================================\n");
+
+    // Push new entry into our circular array (shift oldest out if full)
+    if (count < MAX_LOG_ENTRIES)
+    {
+        history[count] = {reset_reason};
+        count++;
+    }
+    else
+    {
+        // Shift left: drop oldest, add newest at end
+        for (uint8_t i = 0; i < MAX_LOG_ENTRIES - 1; i++)
+        {
+            history[i] = history[i + 1];
+        }
+        history[MAX_LOG_ENTRIES - 1] = {reset_reason};
+    }
+
+    // Save back to Flash
+    preferences.putBytes("logs", history, sizeof(history));
+    preferences.putUChar("count", count);
+    preferences.end();
+}
+#endif
 // ============================================================
 // MPU9250
 // ============================================================
@@ -311,88 +420,6 @@ PoiController poi_controller = PoiController(
 // SETUP
 // ============================================================
 
-#include "esp_system.h" // Needed for esp_reset_reason()
-
-
-struct BootLogEntry {
-    esp_reset_reason_t reset_reason;
-};
-
-constexpr uint8_t MAX_LOG_ENTRIES = 16; // 16 entries is plenty and uses < 200 bytes
-
-// Helper to convert esp_reset_reason_t to readable text
-const char* resetReasonToString(esp_reset_reason_t reason) {
-    switch (reason) {
-        case ESP_RST_POWERON:   return "POWER_ON";
-        case ESP_RST_EXT:       return "EXTERNAL_PIN";
-        case ESP_RST_SW:        return "SOFTWARE_RESTART";
-        case ESP_RST_PANIC:     return "CRASH / PANIC (EXCEPTION)";
-        case ESP_RST_INT_WDT:   return "INTERRUPT_WATCHDOG";
-        case ESP_RST_TASK_WDT:  return "TASK_WATCHDOG (FREEZE)";
-        case ESP_RST_WDT:       return "OTHER_WATCHDOG";
-        case ESP_RST_DEEPSLEEP: return "DEEP_SLEEP_WAKE";
-        case ESP_RST_BROWNOUT:  return "BROWNOUT (VOLTAGE DROP)";
-        case ESP_RST_SDIO:      return "SDIO";
-        default:                return "UNKNOWN";
-    }
-}
-
-
-void logAndPrintBootDiagnostics() {
-    esp_reset_reason_t reset_reason = esp_reset_reason();
-    
-
-    BootLogEntry history[MAX_LOG_ENTRIES];
-    uint8_t count = 0;
-    uint32_t total_boots = 0;
-
-    preferences.begin("boot_diag", false);
-
-    // Read previous boot count
-    total_boots = preferences.getUInt("total_boots", 0);
-    total_boots++;
-    preferences.putUInt("total_boots", total_boots);
-
-    // Read previous logs
-    if (preferences.getBytesLength("logs") == sizeof(history)) {
-        preferences.getBytes("logs", history, sizeof(history));
-        count = preferences.getUChar("count", 0);
-    } else {
-        memset(history, 0, sizeof(history));
-    }
-
-    // Print Historical Logs to Serial
-    Serial.println("\n========== BOOT DIAGNOSTIC HISTORY ==========");
-    Serial.printf("Lifetime Total Boots: %u\n", total_boots);
-    Serial.println("----------------------------------------------");
-    for (uint8_t i = 0; i < count; i++) {
-        Serial.printf("#%02d, %-25s\n",
-                      i + 1,
-                      resetReasonToString(history[i].reset_reason));
-    }
-    Serial.println("----------------------------------------------");
-    Serial.printf("CURRENT BOOT: Reset Reason: %s \n",
-                  resetReasonToString(reset_reason));
-    Serial.println("==============================================\n");
-
-    // Push new entry into our circular array (shift oldest out if full)
-    if (count < MAX_LOG_ENTRIES) {
-        history[count] = {reset_reason};
-        count++;
-    } else {
-        // Shift left: drop oldest, add newest at end
-        for (uint8_t i = 0; i < MAX_LOG_ENTRIES - 1; i++) {
-            history[i] = history[i + 1];
-        }
-        history[MAX_LOG_ENTRIES - 1] = {reset_reason};
-    }
-
-    // Save back to Flash
-    preferences.putBytes("logs", history, sizeof(history));
-    preferences.putUChar("count", count);
-    preferences.end();
-}
-
 void setup()
 {
     // --------------------------------------------------------
@@ -401,18 +428,33 @@ void setup()
 
     Serial.begin(115200);
 
+#if RESET_LOGGER
     while (!Serial.available())
     {
         delay(100);
     }
-Serial.flush();
-delay(100);
-       logAndPrintBootDiagnostics();
+    Serial.flush();
+    delay(100);
+    logAndPrintBootDiagnostics();
 
-       while (!Serial.available())
+    while (!Serial.available())
     {
         delay(10000);
     }
+#endif
+
+/**
+ * Disabling the brownout detector is bad, buuuuut i dont want to buy capacitors.
+ * The detector will be turned on after the setup again. 
+ * It SHOULD be safe :3
+ * 
+ * Remove ASAP (aka, get money and a capacitor)
+ * 
+ * Sources: 
+ * - https://www.espboards.dev/troubleshooting/issues/power/esp32-brownout-reset/
+ * - https://embeddedprep.com/esp32-brownout-tutorials/
+ */
+    WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); // disable brownout detector
 
     Serial.println();
     Serial.println("==============================");
@@ -640,6 +682,8 @@ delay(100);
     lastLedUpdate = millis();
 
     Serial.println("Setup complete.");
+
+    WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 1); // enable brownout detector
 }
 
 void loop()
