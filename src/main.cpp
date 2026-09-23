@@ -209,9 +209,9 @@ BleEndpoint<uint16_t> endpointHueMin(HUE_MIN_UUID, "hueMin", 260, NIMBLE_PROPERT
 BleEndpoint<uint16_t> endpointHueMax(HUE_MAX_UUID, "hueMax", 359, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
 BleEndpoint<std::string> endpointCntrlMde(CONTROLLER_MODE_UUID, "CntrlMde", "GYRO", NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
 
-BleEndpoint<std::string> endpointSSID(OTA_SSID_UUID, "SSID", "1234", NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
-BleEndpoint<std::string> endpointWifiPwd(OTA_SSID_PWD, "WIFI_PWD", "1234", NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
-BleEndpoint<std::string> endpointOTAPwd(OTA_PWD, "OTA_PWD", "1234", NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
+BleEndpoint<std::string> endpointSSID(OTA_SSID_UUID, "SSID", "1234",  NIMBLE_PROPERTY::WRITE);
+BleEndpoint<std::string> endpointWifiPwd(OTA_SSID_PWD, "WIFI_PWD", "1234", NIMBLE_PROPERTY::WRITE);
+BleEndpoint<std::string> endpointOTAPwd(OTA_PWD, "OTA_PWD", "1234", NIMBLE_PROPERTY::WRITE);
 
 // Typ: uint8_t | Startwert: 100% | Rechte: Lesen & Benachrichtigen (Kein Schreiben vom Handy!)
 BleEndpoint<uint8_t> endpointBattery(
