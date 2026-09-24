@@ -8,6 +8,8 @@ Yes, there are more settings.
 You can find the controller app here: [rainbow_app](https://github.com/Escape9002/rainbow_app).
 
 ## Firmware
+This firmware has been written with the help of AI. Every line was read and validated.
+
 ### Animation States
 Theres an Animation State machine, currently supported are:
 - Acceleration
